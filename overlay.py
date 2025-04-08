@@ -63,8 +63,6 @@ class Overlay(Syscapture,Transcription):
         #keeps tkinter running 
 
 
-if __name__ == "__main__":
-    overlay = Overlay()
-    overlay.start_capture()
+
 
         
