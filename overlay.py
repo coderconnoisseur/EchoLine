@@ -27,23 +27,22 @@ class Overlay(Syscapture,Transcription):
         self.root.attributes('-alpha',0.8)      #opacity/Transparency
         self.root.overrideredirect(True)        #NO BORDERS 
         self.root.configure(background='black') #self explanatory 
-        self.subtitle_label = tk.Label(self.root, text="", font=("Arial", 24), bg="black", fg="white") #white bg black font
-        self.subtitle_label.pack(expand=True, fill='both')      #will adjust to fit space 
-        #canvas setup
-        self.canvas=tk.Canvas(self.root,background='black',highlightthickness=0)
-        self.canvas.pack(fill=tk.BOTH,expand=True)
-        self.frame=tk.Frame(self.canvas,bg='black')
-        self.canvas.create_window((0,0),window=self.frame,anchor='nw')
         
-        #scroll bar setup  
+        # Remove the subtitle_label and keep only the main label
+        self.canvas = tk.Canvas(self.root, background='black', highlightthickness=0)
+        self.canvas.pack(fill=tk.BOTH, expand=True)
+        self.frame = tk.Frame(self.canvas, bg='black')
+        self.canvas.create_window((0,0), window=self.frame, anchor='nw')
+        
         self.scrollbar = ttk.Scrollbar(self.root, orient="vertical", command=self.canvas.yview)
         self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.canvas.configure(yscrollcommand=self.scrollbar.set)
         self.frame.bind("<Configure>", self.on_frame_configure)
+        
         self.label = ttk.Label(
             self.frame,
             text="",
-            font=("Arial", 16),
+            font=("Arial", 18),  # Decreased font size
             background='black',
             foreground='white',
             wraplength=380,
@@ -87,6 +86,28 @@ class Overlay(Syscapture,Transcription):
         """Stop moving the window."""
         self._offset_x = 0
         self._offset_y = 0
+
+    def update_caption(self, text, is_partial=False):
+        """Update the caption text in the overlay"""
+        if is_partial:
+            text = f"{text}..."
+        
+        try:
+            if not self.root.winfo_exists():
+                return
+            
+            self._current_text = text
+            
+            def update_label():
+                if hasattr(self, '_current_text'):
+                    self.label.config(text=self._current_text)
+                self.canvas.yview_moveto(1.0)
+            
+            self.root.after(0, update_label)
+        except Exception as e:
+            print(f"Error updating caption: {e}")
+
+    # Remove the update_subtitle method as it's no longer needed
 
 
 
