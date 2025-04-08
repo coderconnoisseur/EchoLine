@@ -27,7 +27,7 @@ class Overlay(Syscapture,Transcription):
         self.root.attributes('-alpha',0.8)      #opacity/Transparency
         self.root.overrideredirect(True)        #NO BORDERS 
         self.root.configure(background='black') #self explanatory 
-        self.subtitle_label = tk.Label(self.root, text="", font=("Arial", 24), bg="white", fg="black") #white bg black font
+        self.subtitle_label = tk.Label(self.root, text="", font=("Arial", 24), bg="black", fg="white") #white bg black font
         self.subtitle_label.pack(expand=True, fill='both')      #will adjust to fit space 
         #canvas setup
         self.canvas=tk.Canvas(self.root,background='black',highlightthickness=0)
@@ -52,6 +52,16 @@ class Overlay(Syscapture,Transcription):
         self.label.pack(pady=10, padx=10, anchor='w')
         self.root.geometry(f"400x100+{self.root.winfo_screenwidth()//2 - 200}+{self.root.winfo_screenheight() - 150}")
         #the subtitle overlay will be at bottom and will be of size 400*100(i might add resize later)
+
+        # Bind mouse events for moving the window
+        self.root.bind("<ButtonPress-1>", self.start_move)
+        self.root.bind("<B1-Motion>", self.do_move)
+        self.root.bind("<ButtonRelease-1>", self.stop_move)
+
+        # Initialize variables to track mouse position
+        self._offset_x = 0
+        self._offset_y = 0
+
     def on_frame_configure(self, event):
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
         #updates the scroll region 
@@ -61,6 +71,22 @@ class Overlay(Syscapture,Transcription):
     def run(self): 
         self.root.mainloop()
         #keeps tkinter running 
+
+    def start_move(self, event):
+        """Record the initial position of the mouse."""
+        self._offset_x = event.x
+        self._offset_y = event.y
+
+    def do_move(self, event):
+        """Move the window to follow the mouse."""
+        x = self.root.winfo_pointerx() - self._offset_x
+        y = self.root.winfo_pointery() - self._offset_y
+        self.root.geometry(f"+{x}+{y}")
+
+    def stop_move(self, event):
+        """Stop moving the window."""
+        self._offset_x = 0
+        self._offset_y = 0
 
 
 
