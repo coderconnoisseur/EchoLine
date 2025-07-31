@@ -20,7 +20,7 @@ SpeechmaticsRealTime.py
 *.spec
 __pycache__/
 *.pyc
-
+youtube_caption_overlay.py
 # Unit test / coverage reports
 htmlcov/
 .tox/
