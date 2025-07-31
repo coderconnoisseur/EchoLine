@@ -1,4 +1,7 @@
-tkinter
-numpy
-sounddevice
-vosk
+PySide6==6.6.0
+numpy==1.24.3
+sounddevice==0.4.6
+requests==2.31.0
+python-dotenv==1.0.0
+vosk==0.3.45
+websocket-client==1.6.1

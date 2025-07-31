@@ -1,4 +1,4 @@
-from Overlay import Overlay
+from overlay import Overlay
 
 if __name__ == "__main__":
     overlay = Overlay()
