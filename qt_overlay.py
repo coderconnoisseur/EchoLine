@@ -14,6 +14,20 @@ class OverlaySignals(QObject):
     update_text = Signal(str, bool)  # text, is_partial
 
 class YouTubeCaptionOverlay(QWidget):
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if event.buttons() == Qt.LeftButton and hasattr(self, '_drag_pos'):
+            self.move(event.globalPosition().toPoint() - self._drag_pos)
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.LeftButton and hasattr(self, '_drag_pos'):
+            del self._drag_pos
+        super().mouseReleaseEvent(event)
     def __init__(self):
         super().__init__()
         
