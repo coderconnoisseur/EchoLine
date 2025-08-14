@@ -223,17 +223,17 @@ class YouTubeCaptionOverlay(QWidget):
             QLabel {
                 color: white;
                 background-color: rgba(0,0,0,0.7);
-                border-radius: 16px;
-                padding: 8px 20px;
+                border-radius: 12px;
+                padding: 6px 16px;
                 font-family: 'Arial', 'Roboto', 'Segoe UI', sans-serif;
-                font-size: 24px;
+                font-size: 20px;
                 font-weight: 500;
-                letter-spacing: 0.5px;
-                line-height: 1.3;
+                letter-spacing: 0.3px;
+                line-height: 1.2;
                 margin: 2px;
             }
         """)
-        font = QFont("Arial", 24, QFont.Medium)
+        font = QFont("Arial", 20, QFont.Medium)
         label.setFont(font)
         
         # Add shadow for text visibility
@@ -361,10 +361,10 @@ class YouTubeCaptionOverlay(QWidget):
 
     def resize_overlay(self):
         screen = QApplication.primaryScreen().geometry()
-        width = int(screen.width() * 0.8)
-        height = int(screen.height() * 0.18)
+        width = int(screen.width() * 0.25)  # Reduced from 0.3 to 0.25
+        height = int(screen.height() * 0.08)  # Reduced from 0.12 to 0.08
         x = (screen.width() - width) // 2
-        y = int(screen.height() * 0.82) - height // 2
+        y = int(screen.height() * 0.85) - height // 2  # Moved slightly lower
         self.setGeometry(QRect(x, y, width, height))
         
         # Position close button at top-right corner of overlay
