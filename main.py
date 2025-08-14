@@ -1,5 +1,6 @@
-from overlay import Overlay
+from app import EchoLineApp
+import sys
 
 if __name__ == "__main__":
-    overlay = Overlay()
-    overlay.start_capture()
+    app = EchoLineApp()
+    sys.exit(app.run())
