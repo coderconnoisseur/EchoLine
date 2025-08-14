@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QGraphicsDropShadowEffect, QPushButton
+from PySide6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QGraphicsDropShadowEffect, QPushButton, QScrollArea
 from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QRect, QEasingCurve, Signal, QObject
 from PySide6.QtGui import QFont, QColor, QShortcut, QKeySequence
 import sys
@@ -84,60 +84,46 @@ class YouTubeCaptionOverlay(QWidget):
         self.close_button.clicked.connect(self.close_app)
         self.close_button.hide()  # Initially hidden
 
-        self.caption_label = QLabel("Ready for live captions...")
-        self.caption_label.setAlignment(Qt.AlignCenter)
-        self.caption_label.setWordWrap(True)
-        self.caption_label.setStyleSheet("""
-            QLabel {
-                color: white;
-                background-color: rgba(0,0,0,0.6);
-                border-radius: 18px;
-                padding: 12px 32px;
-                font-family: 'Arial', 'Roboto', 'Segoe UI', sans-serif;
-                font-size: 28px;
-                font-weight: 500;
-                letter-spacing: 0.5px;
-                line-height: 1.4;
+        # Create scroll area for captions (no visible scrollbar)
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.scroll_area.setStyleSheet("""
+            QScrollArea {
+                background: transparent;
+                border: none;
             }
         """)
-        font = QFont("Arial", 28, QFont.Medium)
-        self.caption_label.setFont(font)
 
-        # Add shadow for text visibility
-        shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(12)
-        shadow.setColor(QColor(0,0,0,220))
-        shadow.setOffset(2, 2)
-        self.caption_label.setGraphicsEffect(shadow)
+        # Container widget for caption lines
+        self.caption_container = QWidget()
+        self.caption_container.setAttribute(Qt.WA_TranslucentBackground)
+        self.caption_layout = QVBoxLayout(self.caption_container)
+        self.caption_layout.setContentsMargins(12, 12, 12, 12)
+        self.caption_layout.setSpacing(8)
+        self.caption_layout.addStretch()  # Push captions to bottom
 
-        # Layout setup with close button positioned at corner of caption
+        self.scroll_area.setWidget(self.caption_container)
+
+        # Layout setup
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
-        
-        # Create a container for the caption and close button
-        caption_container = QWidget()
-        caption_container.setAttribute(Qt.WA_TranslucentBackground)
-        
-        # Use absolute positioning for precise control
-        caption_layout = QVBoxLayout(caption_container)
-        caption_layout.setContentsMargins(0, 0, 0, 0)
-        caption_layout.addWidget(self.caption_label, alignment=Qt.AlignCenter)
-        
-        # Position close button relative to caption container
-        self.close_button.setParent(caption_container)
-        self.close_button.move(0, 0)  # Will be repositioned in resize_overlay
-        
-        layout.addWidget(caption_container, alignment=Qt.AlignCenter)
+        layout.addWidget(self.scroll_area)
 
         self.setLayout(layout)
 
+        # Position close button relative to overlay
+        self.close_button.setParent(self)
+
         # Enable mouse tracking for hover effects
         self.setMouseTracking(True)
-        self.caption_label.setMouseTracking(True)
+        self.caption_container.setMouseTracking(True)
 
-        # Store caption container reference for button positioning
-        self.caption_container = caption_container
+        # Store single caption label instead of a list
+        self.caption_label = None
+        self._add_caption_line("Ready for live captions...", partial=True)
 
         # Keyboard shortcuts
         self.close_shortcut = QShortcut(QKeySequence("Ctrl+Q"), self)
@@ -159,6 +145,13 @@ class YouTubeCaptionOverlay(QWidget):
 
         # Listen for screen geometry changes
         QApplication.instance().primaryScreen().geometryChanged.connect(self.resize_overlay)
+
+        # Connect scrollbar signal for auto-scrolling
+        self.scroll_area.verticalScrollBar().rangeChanged.connect(self.auto_scroll_to_bottom)
+
+    def auto_scroll_to_bottom(self, min_val, max_val):
+        """Slot to automatically scroll to the bottom when content size changes"""
+        self.scroll_area.verticalScrollBar().setValue(max_val)
 
     def enterEvent(self, event):
         """Show close button on mouse hover"""
@@ -183,45 +176,86 @@ class YouTubeCaptionOverlay(QWidget):
         self.signals.update_text.emit(text, is_partial)
 
     def _update_caption_safe(self, text, is_partial=False):
-        """Update caption text with YouTube-style behavior"""
+        """Update caption text with YouTube-style auto-scrolling behavior"""
         if not text.strip():
             # If empty text, show listening message
             if not self.current_sentence and not self.partial_text:
-                self.caption_label.setText("Listening for audio...")
+                self._add_caption_line("Listening for audio...", partial=True)
             return
-            
+
         if is_partial:
-            # Partial text - just append/update without animation
+            # Partial text - update the caption label
             self.partial_text = text
-            # Combine current sentence with partial text
             display_text = self.current_sentence
             if display_text and self.partial_text:
                 display_text += " " + self.partial_text
             elif self.partial_text:
                 display_text = self.partial_text
-                
-            # Update label directly without animation
-            self.caption_label.setText(display_text)
+
+            # Update the caption label
+            self._add_caption_line(display_text, partial=True)
         else:
-            # Final text - this is a complete sentence/phrase
+            # Final text - update the caption label
             new_sentence = text.strip()
-            
-            # Check if this is actually new content
             if new_sentence == self.last_final_text:
                 return
-                
-            # If we have a previous complete sentence, fade out and replace
-            if self.current_sentence:
-                # Store the new sentence to show after fade
-                self.pending_sentence = new_sentence
-                self.fade_out_in()
-            else:
-                # First sentence or no previous content, just show it
-                self.current_sentence = new_sentence
-                self.partial_text = ""
-                self.caption_label.setText(self.current_sentence)
-                
+
+            display_text = self.current_sentence + " " + new_sentence if self.current_sentence else new_sentence
+            self._add_caption_line(display_text, partial=False)
+
+            self.current_sentence = display_text
+            self.partial_text = ""
             self.last_final_text = new_sentence
+
+    def _add_caption_line(self, text, partial=False):
+        """Add or update the caption label"""
+        # If we already have a caption label, update it
+        if self.caption_label:
+            self.caption_label.setText(text)
+            self.caption_label.is_partial = partial
+            return
+
+        # Create a new caption label if it doesn't exist
+        label = QLabel(text)
+        label.setWordWrap(True)
+        label.setAlignment(Qt.AlignCenter)
+        label.setStyleSheet("""
+            QLabel {
+                color: white;
+                background-color: rgba(0,0,0,0.7);
+                border-radius: 16px;
+                padding: 8px 20px;
+                font-family: 'Arial', 'Roboto', 'Segoe UI', sans-serif;
+                font-size: 24px;
+                font-weight: 500;
+                letter-spacing: 0.5px;
+                line-height: 1.3;
+                margin: 2px;
+            }
+        """)
+        font = QFont("Arial", 24, QFont.Medium)
+        label.setFont(font)
+        
+        # Add shadow for text visibility
+        shadow = QGraphicsDropShadowEffect(self)
+        shadow.setBlurRadius(8)
+        shadow.setColor(QColor(0, 0, 0, 180))
+        shadow.setOffset(1, 1)
+        label.setGraphicsEffect(shadow)
+        
+        label.is_partial = partial
+        
+        # Insert before the stretch (so captions appear at bottom)
+        self.caption_layout.insertWidget(self.caption_layout.count() - 1, label)
+        self.caption_label = label
+        
+        # Force scroll to bottom after adding new content
+        QTimer.singleShot(10, self.force_scroll_to_bottom)
+
+    def force_scroll_to_bottom(self):
+        """Force scrolling to the bottom of the content"""
+        scrollbar = self.scroll_area.verticalScrollBar()
+        scrollbar.setValue(scrollbar.maximum())
 
     def audio_callback(self, indata, frames, time, status):
         """Callback function for audio stream"""
@@ -319,41 +353,11 @@ class YouTubeCaptionOverlay(QWidget):
             # Signal to stop processing
             self.q.put(b'')
             
-            # Clear the labels
-            self.caption_label.setText("Audio capture stopped")
+            # Show stopped message
+            self._add_caption_line("Audio capture stopped", partial=False)
             
         except Exception as e:
             print(f"Error during shutdown: {e}")
-
-    def fade_out_in(self):
-        """Fade animation for sentence transitions"""
-        self.opacity_anim.stop()
-        self.opacity_anim.setStartValue(1.0)
-        self.opacity_anim.setEndValue(0.0)
-        try:
-            self.opacity_anim.finished.disconnect()
-        except Exception:
-            pass
-        self.opacity_anim.finished.connect(self._on_fade_out)
-        self.opacity_anim.start()
-
-    def _on_fade_out(self):
-        """Handle fade out completion - show new sentence"""
-        # Update to new sentence
-        if hasattr(self, 'pending_sentence'):
-            self.current_sentence = self.pending_sentence
-            self.partial_text = ""
-            self.caption_label.setText(self.current_sentence)
-            delattr(self, 'pending_sentence')
-        
-        # Fade back in
-        try:
-            self.opacity_anim.finished.disconnect()
-        except Exception:
-            pass
-        self.opacity_anim.setStartValue(0.0)
-        self.opacity_anim.setEndValue(1.0)
-        self.opacity_anim.start()
 
     def resize_overlay(self):
         screen = QApplication.primaryScreen().geometry()
@@ -363,14 +367,10 @@ class YouTubeCaptionOverlay(QWidget):
         y = int(screen.height() * 0.82) - height // 2
         self.setGeometry(QRect(x, y, width, height))
         
-        # Position close button at top-right corner of caption label
-        if hasattr(self, 'caption_container'):
-            # Get caption label geometry within its container
-            label_rect = self.caption_label.geometry()
-            # Position close button at top-right corner of the caption box
-            button_x = label_rect.right() - self.close_button.width() + 5
-            button_y = label_rect.top() - 5
-            self.close_button.move(button_x, button_y)
+        # Position close button at top-right corner of overlay
+        button_x = width - self.close_button.width() - 10
+        button_y = 10
+        self.close_button.move(button_x, button_y)
 
 def main():
     """Main function to run the Qt overlay"""
