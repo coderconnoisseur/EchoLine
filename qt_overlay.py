@@ -8,7 +8,7 @@ import numpy as np
 import sounddevice as sd
 from vosk import KaldiRecognizer, Model
 import json
-
+import os
 class OverlaySignals(QObject):
     """Signal object for thread-safe GUI updates"""
     update_text = Signal(str, bool)  # text, is_partial
@@ -44,7 +44,9 @@ class YouTubeCaptionOverlay(QWidget):
         
         # Initialize Vosk model and recognizer
         try:
-            self.model = Model("C:\\Users\\Acer\\.cache\\vosk\\vosk-model-small-en-us-0.15")
+            # Use a relative path or environment variable instead of hardcoded user path
+            model_path = os.path.join(os.path.expanduser("~"), ".cache", "vosk", "vosk-model-small-en-us-0.15")
+            self.model = Model(model_path)
             self.recognizer = KaldiRecognizer(self.model, 16000)
         except Exception as e:
             print(f"Error loading Vosk model: {e}")
