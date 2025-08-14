@@ -1,6 +1,6 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QScrollArea
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QScrollArea, QApplication
 from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QRect, QEasingCurve
-from PySide6.QtGui import QShortcut, QKeySequence, QApplication
+from PySide6.QtGui import QShortcut, QKeySequence
 
 from ui.caption_widget import CaptionLabel
 
@@ -82,6 +82,8 @@ class YouTubeCaptionOverlay(QWidget):
         self.close_button.clicked.connect(self.close_app)
         self.close_button.hide()  # Initially hidden
         self.close_button.setParent(self)
+        # Ensure close button appears on top
+        self.close_button.raise_()
     
     def _setup_scroll_area(self):
         """Setup the scroll area for captions"""
@@ -157,6 +159,7 @@ class YouTubeCaptionOverlay(QWidget):
     def enterEvent(self, event):
         """Show close button on mouse hover"""
         self.close_button.show()
+        self.close_button.raise_()  # Ensure it stays on top when shown
         super().enterEvent(event)
 
     def leaveEvent(self, event):
@@ -237,6 +240,8 @@ class YouTubeCaptionOverlay(QWidget):
         button_x = width - self.close_button.width() - 10
         button_y = 10
         self.close_button.move(button_x, button_y)
+        # Ensure close button stays on top after repositioning
+        self.close_button.raise_()
     
     def close_app(self):
         """Close the application gracefully"""
