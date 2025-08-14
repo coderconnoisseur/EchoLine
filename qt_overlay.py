@@ -52,6 +52,7 @@ class YouTubeCaptionOverlay(QWidget):
             self.recognizer = None
         
         # Window setup
+        # Window setup
         self.setWindowFlags(
             Qt.WindowStaysOnTopHint |
             Qt.FramelessWindowHint |
@@ -61,6 +62,14 @@ class YouTubeCaptionOverlay(QWidget):
         self.setAttribute(Qt.WA_ShowWithoutActivating)
         self.setFocusPolicy(Qt.NoFocus)
         self.setWindowTitle("Live Caption Overlay")
+        
+        # Add styling to the main window for curved corners
+        self.setStyleSheet("""
+            YouTubeCaptionOverlay {
+                background-color: transparent;
+                border-radius: 12px;
+            }
+        """)
 
         # Create close button (initially hidden)
         self.close_button = QPushButton("✕")
@@ -71,7 +80,7 @@ class YouTubeCaptionOverlay(QWidget):
                 color: white;
                 border: none;
                 border-radius: 12px;
-                font-size: 14px;
+                font-size: 20px;
                 font-weight: bold;
             }
             QPushButton:hover {
@@ -99,6 +108,12 @@ class YouTubeCaptionOverlay(QWidget):
         # Container widget for caption lines
         self.caption_container = QWidget()
         self.caption_container.setAttribute(Qt.WA_TranslucentBackground)
+        self.caption_container.setStyleSheet("""
+            QWidget {
+                border-radius: 12px;
+                background-color: transparent;
+            }
+        """)
         self.caption_layout = QVBoxLayout(self.caption_container)
         self.caption_layout.setContentsMargins(12, 12, 12, 12)
         self.caption_layout.setSpacing(8)
@@ -224,16 +239,16 @@ class YouTubeCaptionOverlay(QWidget):
                 color: white;
                 background-color: rgba(0,0,0,0.7);
                 border-radius: 12px;
-                padding: 6px 16px;
+                padding: 8px 20px;  /* Increased from 6px 16px */
                 font-family: 'Arial', 'Roboto', 'Segoe UI', sans-serif;
-                font-size: 20px;
+                font-size: 24px;  /* Increased from 20px */
                 font-weight: 500;
                 letter-spacing: 0.3px;
                 line-height: 1.2;
                 margin: 2px;
             }
         """)
-        font = QFont("Arial", 20, QFont.Medium)
+        font = QFont("Arial", 24, QFont.Medium)  
         label.setFont(font)
         
         # Add shadow for text visibility
@@ -361,8 +376,8 @@ class YouTubeCaptionOverlay(QWidget):
 
     def resize_overlay(self):
         screen = QApplication.primaryScreen().geometry()
-        width = int(screen.width() * 0.25)  # Reduced from 0.3 to 0.25
-        height = int(screen.height() * 0.08)  # Reduced from 0.12 to 0.08
+        width = int(screen.width() * 0.35)  # Reduced from 0.3 to 0.25
+        height = int(screen.height() * 0.12)  # Reduced from 0.12 to 0.08
         x = (screen.width() - width) // 2
         y = int(screen.height() * 0.85) - height // 2  # Moved slightly lower
         self.setGeometry(QRect(x, y, width, height))
