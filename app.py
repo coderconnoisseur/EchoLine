@@ -26,6 +26,7 @@ class EchoLineApp:
         
         # Connect close event
         self.overlay.destroyed.connect(self.cleanup)
+        self.signals.app_closing.connect(self.cleanup)
     
     def process_audio(self, audio_data):
         """Process audio data through speech recognizer"""
@@ -49,7 +50,13 @@ class EchoLineApp:
     
     def cleanup(self):
         """Clean up resources before exit"""
-        self.audio_capture.stop()
+        print("Cleaning up resources...")
+        try:
+            self.audio_capture.stop()
+        except Exception as e:
+            print(f"Error during cleanup: {e}")
+        # Force exit the application
+        QApplication.quit()
     
     def run(self):
         """Run the application"""
@@ -58,9 +65,12 @@ class EchoLineApp:
             self.start_capture()
             
             # Run the application
-            return self.app.exec()
+            exit_code = self.app.exec()
+            print("Application finished with exit code:", exit_code)
+            return exit_code
         except Exception as e:
             print(f"Error running application: {e}")
             return 1
         finally:
             self.cleanup()
+            print("Application cleanup completed")
