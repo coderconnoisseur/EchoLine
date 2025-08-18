@@ -1,6 +1,13 @@
 # EchoLine - Real-Time Speech-to-Text Overlay  
+![Python](https://img.shields.io/badge/Python-3.7%2B-blue?logo=python&logoColor=white)
+![Vosk](https://img.shields.io/badge/Vosk-Speech_Recognition-orange?logo=google-voice&logoColor=white)
+![PyQt5](https://img.shields.io/badge/GUI-PyQt5-green?logo=qt&logoColor=white)
+![Accessibility](https://img.shields.io/badge/Accessibility-Live_Captions-brightgreen)
+![Platform](https://img.shields.io/badge/Platform-Windows-lightgrey)
+
 
 EchoLine is a real-time speech-to-text overlay application that displays live captions on your screen. It's perfect for accessibility, transcription, or any scenario where you need live captions.  
+![Project Diagram](utils/diagram.png)
 
 ## Features  
 - Real-time speech-to-text conversion  
