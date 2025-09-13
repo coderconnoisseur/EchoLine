@@ -66,6 +66,10 @@ Click and drag to move the overlay window
 
 The window automatically scrolls to show the latest text
 
+## Benchmarking 
+
+Refer to ![README_BENCHMARKING](metrics/README.md)
+
 ## Troubleshooting
    No Audio Captured
 
