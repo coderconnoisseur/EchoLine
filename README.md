@@ -44,6 +44,18 @@ EchoLine is a real-time speech-to-text overlay application that displays live ca
    Press Ctrl + Q, or
    Click the X (close button) on the top-right corner of the overlay window.
 
+![Guide](utils/Screenshot%20(234).png)
+
+
+
+![Guide](utils/Screenshot%20(235).png)
+
+
+
+
+![Guide](utils/image.png)
+
+
 ## Usage
 
 The overlay will appear at the bottom of your screen
