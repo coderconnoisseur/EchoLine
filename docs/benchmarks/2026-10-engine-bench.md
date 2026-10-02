@@ -40,6 +40,11 @@ left out of the decision.
 ## Live pipeline check (Tiny, real loopback audio)
 
 End-to-end sound-to-screen latency measured by `--show-latency` while playing
-speech through the speakers: **p50 ≈ 300–420 ms, p95 ≈ 550–610 ms**, with the
-benchmark running concurrently. The p50 target (< 300 ms) is borderline on this
-machine; re-measure on an idle machine before tuning the update interval.
+44 s of speech through the speakers:
+
+| Condition | p50 | p95 |
+|---|---|---|
+| Idle machine | **266 ms** | **438 ms** |
+| Benchmark running concurrently | 300–420 ms | 550–610 ms |
+
+On an idle machine both spec targets are met (p50 < 300 ms, p95 < 600 ms).
