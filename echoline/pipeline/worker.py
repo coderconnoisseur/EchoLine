@@ -1,5 +1,6 @@
 import collections
 import threading
+import time
 import traceback
 
 from ..engine.base import SAMPLE_RATE
@@ -8,7 +9,7 @@ from ..engine.base import SAMPLE_RATE
 class EngineWorker:
     """Feeds queued audio to a speech engine on its own thread, never falling behind real time."""
 
-    def __init__(self, engine, on_events, on_lagging, max_backlog_s=1.0):
+    def __init__(self, engine, on_events, on_lagging, max_backlog_s=1.0, lagging_hold_s=2.0, clock=time.monotonic):
         self._engine = engine
         self._on_events = on_events
         self._on_lagging = on_lagging
@@ -16,6 +17,9 @@ class EngineWorker:
         self._queue = collections.deque()
         self._queued_samples = 0
         self._lagging = False
+        self._lagging_hold = lagging_hold_s
+        self._last_drop = None
+        self._clock = clock
         self._lock = threading.Lock()
         self._wakeup = threading.Event()
         self._running = False
@@ -47,7 +51,11 @@ class EngineWorker:
         batch, dropped = self._take_batch()
         if not batch:
             return
-        self._set_lagging(dropped)
+        now = self._clock()
+        if dropped:
+            self._last_drop = now
+        # Stay "lagging" until caught up for a while, so the status does not flicker.
+        self._set_lagging(self._last_drop is not None and now - self._last_drop < self._lagging_hold)
         for samples, captured_at in batch:
             try:
                 events = self._engine.feed(samples)

@@ -55,16 +55,32 @@ def test_backlog_drops_oldest_audio_and_flags_lagging():
     assert lagging == [True]
 
 
-def test_lagging_clears_once_caught_up():
+class Clock:
+    def __init__(self):
+        self.now = 0.0
+
+    def __call__(self):
+        return self.now
+
+
+def test_lagging_clears_only_after_staying_caught_up():
+    # Clearing on the first clean batch made the "Catching up" pill flicker,
+    # and every flicker resized the overlay.
     events, lagging, on_events, on_lagging = collect()
-    worker = EngineWorker(RecordingEngine(), on_events, on_lagging, max_backlog_s=0.1)
+    clock = Clock()
+    worker = EngineWorker(RecordingEngine(), on_events, on_lagging, max_backlog_s=0.1, clock=clock)
 
     for i in range(10):
         worker.push(block(30), captured_at=i)
     worker.process_pending()
+    clock.now = 0.5
     worker.push(block(30), captured_at=99)
     worker.process_pending()
+    assert lagging == [True]
 
+    clock.now = 2.5
+    worker.push(block(30), captured_at=100)
+    worker.process_pending()
     assert lagging == [True, False]
 
 
