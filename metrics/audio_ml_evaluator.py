@@ -21,11 +21,11 @@ import json
 import time
 import numpy as np
 
-# Add parent directory to path to import from transcription and metrics
+# Add parent directory to path to import echoline and metrics
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 try:
-    from transcription.speech_recognition import SpeechRecognizer
+    from echoline.engine.vosk_recognizer import SpeechRecognizer
     from metrics import TranscriptionEvaluator, PerformanceMonitor, ConfusionMatrixAnalyzer, print_detailed_metrics
 except ImportError as e:
     print(f"Error importing modules: {e}")
