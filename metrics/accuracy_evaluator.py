@@ -1,8 +1,7 @@
 import re
-import json
 import numpy as np
-from collections import Counter, defaultdict
-from typing import List, Tuple, Dict, Any
+from collections import defaultdict
+from typing import List, Tuple, Dict
 from dataclasses import dataclass
 
 def edit_distance(a, b) -> int:
@@ -18,6 +17,15 @@ def edit_distance(a, b) -> int:
             ))
         previous = current
     return previous[-1]
+
+def most_confused_pairs(confusion_matrix: Dict[str, Dict[str, int]], top_k: int = 10) -> List[Tuple[str, str, int]]:
+    """Most frequent (reference, hypothesis, count) error pairs in a confusion matrix"""
+    pairs = [(ref_word, hyp_word, count)
+             for ref_word, row in confusion_matrix.items()
+             for hyp_word, count in row.items()
+             if ref_word != hyp_word and count > 0]
+    pairs.sort(key=lambda pair: pair[2], reverse=True)
+    return pairs[:top_k]
 
 @dataclass
 class TranscriptionMetrics:
@@ -198,7 +206,7 @@ class TranscriptionEvaluator:
         sentence_accuracy = 1.0 if reference_text.strip().lower() == hypothesis_text.strip().lower() else 0.0
         
         # Get most confused words
-        most_confused = self._get_most_confused_words()
+        most_confused = most_confused_pairs(self.confusion_matrix)
         
         return TranscriptionMetrics(
             word_error_rate=wer,
@@ -217,21 +225,6 @@ class TranscriptionEvaluator:
             confusion_matrix=dict(self.confusion_matrix),
             most_confused_words=most_confused
         )
-    
-    def _get_most_confused_words(self, confusion_matrix=None, top_k: int = 10) -> List[Tuple[str, str, int]]:
-        """Get the most frequently confused word pairs"""
-        if confusion_matrix is None:
-            confusion_matrix = self.confusion_matrix
-        confused_pairs = []
-        
-        for ref_word, substitutions in confusion_matrix.items():
-            for hyp_word, count in substitutions.items():
-                if ref_word != hyp_word and count > 0:
-                    confused_pairs.append((ref_word, hyp_word, count))
-        
-        # Sort by frequency and return top k
-        confused_pairs.sort(key=lambda x: x[2], reverse=True)
-        return confused_pairs[:top_k]
     
     def evaluate_multiple_samples(self, samples: List[Tuple[str, str]]) -> TranscriptionMetrics:
         """
@@ -269,7 +262,7 @@ class TranscriptionEvaluator:
         avg_sentence_accuracy = np.mean([m.sentence_accuracy for m in all_metrics])
         
         # Most confused words across all samples
-        most_confused = self._get_most_confused_words(combined_confusion)
+        most_confused = most_confused_pairs(combined_confusion)
         
         return TranscriptionMetrics(
             word_error_rate=aggregate_wer,
