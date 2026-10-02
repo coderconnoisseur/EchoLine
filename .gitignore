@@ -42,11 +42,11 @@ htmlcov/
 # Environment variables
 .env
 .env.*
-qt_overlay.py 
-overlay.py 
-Syscapture.py 
-Transcription.py
-build.py
+/qt_overlay.py
+/overlay.py
+/Syscapture.py
+/Transcription.py
+/build.py
 
 # Local virtualenv and generated knowledge graph
 .venv/
