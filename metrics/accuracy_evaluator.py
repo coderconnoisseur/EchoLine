@@ -149,6 +149,9 @@ class TranscriptionEvaluator:
         """
         Main evaluation function - calculates all metrics
         """
+        # Each evaluation gets its own confusion matrix
+        self.confusion_matrix = defaultdict(lambda: defaultdict(int))
+
         # Normalize texts
         ref_words = self.normalize_text(reference_text)
         hyp_words = self.normalize_text(hypothesis_text)
@@ -206,11 +209,13 @@ class TranscriptionEvaluator:
             most_confused_words=most_confused
         )
     
-    def _get_most_confused_words(self, top_k: int = 10) -> List[Tuple[str, str, int]]:
+    def _get_most_confused_words(self, confusion_matrix=None, top_k: int = 10) -> List[Tuple[str, str, int]]:
         """Get the most frequently confused word pairs"""
+        if confusion_matrix is None:
+            confusion_matrix = self.confusion_matrix
         confused_pairs = []
         
-        for ref_word, substitutions in self.confusion_matrix.items():
+        for ref_word, substitutions in confusion_matrix.items():
             for hyp_word, count in substitutions.items():
                 if ref_word != hyp_word and count > 0:
                     confused_pairs.append((ref_word, hyp_word, count))
@@ -224,10 +229,14 @@ class TranscriptionEvaluator:
         Evaluate multiple reference-hypothesis pairs and return aggregate metrics
         """
         all_metrics = []
+        combined_confusion = defaultdict(lambda: defaultdict(int))
         
         for reference, hypothesis in samples:
             metrics = self.evaluate_transcription(reference, hypothesis)
             all_metrics.append(metrics)
+            for ref_word, substitutions in metrics.confusion_matrix.items():
+                for hyp_word, count in substitutions.items():
+                    combined_confusion[ref_word][hyp_word] += count
         
         # Calculate aggregate metrics
         total_words = sum(m.total_words for m in all_metrics)
@@ -251,7 +260,7 @@ class TranscriptionEvaluator:
         avg_sentence_accuracy = np.mean([m.sentence_accuracy for m in all_metrics])
         
         # Most confused words across all samples
-        most_confused = self._get_most_confused_words()
+        most_confused = self._get_most_confused_words(combined_confusion)
         
         return TranscriptionMetrics(
             word_error_rate=aggregate_wer,
@@ -267,7 +276,7 @@ class TranscriptionEvaluator:
             substitutions=total_substitutions,
             insertions=total_insertions,
             deletions=total_deletions,
-            confusion_matrix=dict(self.confusion_matrix),
+            confusion_matrix=dict(combined_confusion),
             most_confused_words=most_confused
         )
 

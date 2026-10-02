@@ -19,3 +19,21 @@ def test_f1_is_zero_when_nothing_matches():
     metrics = TranscriptionEvaluator().evaluate_transcription("hello world", "foo bar")
 
     assert metrics.word_f1_score == 0.0
+
+
+def test_confusion_matrix_does_not_leak_between_evaluations():
+    evaluator = TranscriptionEvaluator()
+    evaluator.evaluate_transcription("cat", "bat")
+
+    metrics = evaluator.evaluate_transcription("dog", "dog")
+
+    assert metrics.most_confused_words == []
+
+
+def test_multiple_samples_aggregate_confusions_across_samples():
+    evaluator = TranscriptionEvaluator()
+
+    metrics = evaluator.evaluate_multiple_samples([("cat", "bat"), ("cat sat", "bat sat")])
+
+    assert metrics.most_confused_words == [("cat", "bat", 2)]
+
