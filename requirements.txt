@@ -5,6 +5,7 @@ vosk==0.3.45
 moonshine-voice==0.1.5
 soxr>=0.3
 PyAudioWPatch==0.2.12.8
+pycaw==20260927
 
 # Metrics Package Dependencies
 matplotlib>=3.5.0
