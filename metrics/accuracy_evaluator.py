@@ -3,8 +3,21 @@ import json
 import numpy as np
 from collections import Counter, defaultdict
 from typing import List, Tuple, Dict, Any
-import difflib
 from dataclasses import dataclass
+
+def edit_distance(a, b) -> int:
+    """Levenshtein distance between two sequences (strings or word lists)"""
+    previous = list(range(len(b) + 1))
+    for i, item_a in enumerate(a, 1):
+        current = [i]
+        for j, item_b in enumerate(b, 1):
+            current.append(min(
+                previous[j] + 1,                      # deletion
+                current[j - 1] + 1,                   # insertion
+                previous[j - 1] + (item_a != item_b)  # substitution
+            ))
+        previous = current
+    return previous[-1]
 
 @dataclass
 class TranscriptionMetrics:
@@ -134,14 +147,10 @@ class TranscriptionEvaluator:
     
     def calculate_character_error_rate(self, reference: str, hypothesis: str) -> float:
         """Calculate Character Error Rate"""
-        ref_chars = list(reference.replace(' ', ''))
-        hyp_chars = list(hypothesis.replace(' ', ''))
+        ref_chars = reference.replace(' ', '')
+        hyp_chars = hypothesis.replace(' ', '')
         
-        # Use difflib for character-level comparison
-        operations = list(difflib.ndiff(ref_chars, hyp_chars))
-        
-        errors = sum(1 for op in operations if op.startswith('- ') or op.startswith('+ '))
-        cer = errors / max(1, len(ref_chars))
+        cer = edit_distance(ref_chars, hyp_chars) / max(1, len(ref_chars))
         
         return cer
     

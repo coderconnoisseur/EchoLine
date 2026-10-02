@@ -37,3 +37,15 @@ def test_multiple_samples_aggregate_confusions_across_samples():
 
     assert metrics.most_confused_words == [("cat", "bat", 2)]
 
+
+def test_character_substitution_counts_as_one_error():
+    metrics = TranscriptionEvaluator().evaluate_transcription("cat", "bat")
+
+    assert metrics.char_error_rate == pytest.approx(1 / 3)
+
+
+def test_character_error_rate_counts_insertions_and_deletions():
+    evaluator = TranscriptionEvaluator()
+
+    assert evaluator.evaluate_transcription("cat", "cats").char_error_rate == pytest.approx(1 / 3)
+    assert evaluator.evaluate_transcription("cats", "cat").char_error_rate == pytest.approx(1 / 4)
