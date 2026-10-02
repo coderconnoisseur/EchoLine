@@ -157,7 +157,8 @@ class AudioEvaluator:
                         orig_sr=sample_rate, 
                         target_sr=16000
                     )
-                    audio_data = (audio_data * 32767).astype(np.int16)
+                    # Samples are still on the int16 scale, so only clip and cast
+                    audio_data = np.clip(np.round(audio_data), -32768, 32767).astype(np.int16)
                     sample_rate = 16000
                 else:
                     print(f"WARNING: Audio sample rate is {sample_rate}Hz, but Vosk expects 16kHz")
