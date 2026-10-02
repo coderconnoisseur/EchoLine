@@ -51,3 +51,6 @@ build.py
 # Local virtualenv and generated knowledge graph
 .venv/
 graphify-out/
+
+# Benchmark audio (downloaded by scripts/fetch_bench_clips.py)
+bench_clips/
