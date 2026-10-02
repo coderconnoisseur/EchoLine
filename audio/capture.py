@@ -12,24 +12,13 @@ class AudioCapture:
         self.is_capturing = False
         self.q = queue.Queue()
         self.capture_thread = None
+        self.stream = None
     
     def audio_callback(self, indata, frames, time, status):
         """Callback function for audio stream"""
         if status:
             print(f"Audio status: {status}")
-        try:
-            # Put data in queue with timeout to prevent blocking
-            self.q.put(bytes(indata), timeout=0.1)
-        except queue.Full:
-            # If queue is full, clear it and try again
-            try:
-                while not self.q.empty():
-                    self.q.get_nowait()
-                self.q.put(bytes(indata), timeout=0.1)
-            except Exception as e:
-                print(f"Error in audio callback: {e}")
-        except Exception as e:
-            print(f"Error in audio callback: {e}")
+        self.q.put(bytes(indata))
     
     def process_audio_queue(self):
         """Process audio data from the queue"""
@@ -94,7 +83,6 @@ class AudioCapture:
 
         except Exception as e:
             print(f"Error starting capture: {e}")
-            print("Full error details:", str(e))
             self.is_capturing = False
             return False
     
@@ -108,7 +96,7 @@ class AudioCapture:
             self.q.put(b'')
             
             # Stop the stream if it exists
-            if hasattr(self, 'stream') and self.stream.active:
+            if self.stream and self.stream.active:
                 self.stream.stop()
                 self.stream.close()
             
