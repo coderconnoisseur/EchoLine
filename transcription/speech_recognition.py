@@ -1,6 +1,5 @@
 import os
 import json
-import numpy as np
 from vosk import KaldiRecognizer, Model
 
 class SpeechRecognizer:
@@ -31,11 +30,7 @@ class SpeechRecognizer:
         if not self.recognizer:
             return None, False
             
-        # Convert to numpy array if needed
-        if not isinstance(audio_data, np.ndarray):
-            audio_data = np.frombuffer(audio_data, dtype=np.int16)
-        
-        if self.recognizer.AcceptWaveform(audio_data.tobytes()):
+        if self.recognizer.AcceptWaveform(bytes(audio_data)):
             result = json.loads(self.recognizer.Result())
             return result.get('text', ''), False  # Final text
         else:
