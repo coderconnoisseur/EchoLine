@@ -112,3 +112,14 @@ def test_entry_point_loads_moonshine_before_qt():
                             env={**os.environ, "QT_QPA_PLATFORM": "offscreen"})
 
     assert "loaded" in result.stdout, result.stderr[-500:]
+
+
+def test_shutdown_closes_the_overlay_window(running):
+    # A window left rendering after shutdown fires frameSwapped into a freed
+    # EchoLineApp, crashing the process.
+    echoline, _ = running
+
+    echoline.shutdown()
+    echoline.shutdown()                      # idempotent: safe to call twice
+
+    assert not echoline.window.isVisible()

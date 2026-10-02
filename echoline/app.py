@@ -28,6 +28,7 @@ class EchoLineApp:
         self.worker = None
         self._source_state = "listening"
         self._pending_capture = None
+        self._closed = False
 
         self.bridge = Bridge()
         self.bridge.events.connect(self._show_events, Qt.QueuedConnection)
@@ -69,7 +70,15 @@ class EchoLineApp:
             self.status.set_latency(self.latency.summary())
 
     def shutdown(self):
+        if self._closed:
+            return
+        self._closed = True
         self.source.stop()
         if self.worker is not None:
             self.worker.stop()
             self.worker = None
+        # Stop rendering before this object goes away: frameSwapped fires on the
+        # render thread and would call into a freed EchoLineApp.
+        self.window.frameSwapped.disconnect(self._on_frame_shown)
+        self.window.close()
+        self.qml.deleteLater()
