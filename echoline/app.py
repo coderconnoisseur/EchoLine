@@ -15,6 +15,7 @@ class Bridge(QObject):
     events = Signal(object, object)      # (events, captured_at)
     status = Signal(str)
     engine_ready = Signal(object)
+    frame_shown = Signal(float)          # monotonic time a frame reached the screen
 
 
 class EchoLineApp:
@@ -34,6 +35,7 @@ class EchoLineApp:
         self.bridge.events.connect(self._show_events, Qt.QueuedConnection)
         self.bridge.status.connect(self._on_status, Qt.QueuedConnection)
         self.bridge.engine_ready.connect(self._on_engine_ready, Qt.QueuedConnection)
+        self.bridge.frame_shown.connect(self._record_latency, Qt.QueuedConnection)
 
         self.qml = QQmlApplicationEngine()
         self.window = load_overlay(self.qml, self.captions, self.status)
@@ -64,8 +66,13 @@ class EchoLineApp:
             self.window.update()
 
     def _on_frame_shown(self):
+        # Runs on Qt's render thread: only timestamp here, update the UI on the GUI thread.
         if self._pending_capture is not None:
-            self.latency.record(self._pending_capture, time.monotonic())
+            self.bridge.frame_shown.emit(time.monotonic())
+
+    def _record_latency(self, shown_at):
+        if self._pending_capture is not None:
+            self.latency.record(self._pending_capture, shown_at)
             self._pending_capture = None
             self.status.set_latency(self.latency.summary())
 

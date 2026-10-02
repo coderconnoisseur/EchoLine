@@ -123,3 +123,22 @@ def test_shutdown_closes_the_overlay_window(running):
     echoline.shutdown()                      # idempotent: safe to call twice
 
     assert not echoline.window.isVisible()
+
+
+def test_latency_display_is_updated_on_the_gui_thread(running):
+    # frameSwapped fires on Qt's render thread; touching QML-bound objects
+    # there is unsafe, so the update must hop back to the GUI thread.
+    import threading
+
+    echoline, _ = running
+    threads = []
+    original = echoline.status.set_latency
+    echoline.status.set_latency = lambda value: (threads.append(threading.current_thread()), original(value))
+    echoline._pending_capture = time.monotonic()
+
+    render_thread = threading.Thread(target=echoline._on_frame_shown)
+    render_thread.start()
+    render_thread.join()
+    wait_until(lambda: threads)
+
+    assert threads == [threading.main_thread()]
