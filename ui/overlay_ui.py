@@ -227,9 +227,6 @@ class YouTubeCaptionOverlay(QWidget):
     def close_app(self):
         """Close the application gracefully"""
         print("Closing EchoLine...")
-        # Emit a signal to notify the main app to clean up
-        if hasattr(self.signals, 'app_closing'):
-            self.signals.app_closing.emit()
-        # Quit the entire application
+        # Ends the event loop; EchoLineApp.run() cleans up once it returns
         QApplication.quit()
         self.close()
