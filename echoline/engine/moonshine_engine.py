@@ -3,6 +3,13 @@ import numpy as np
 from .base import SAMPLE_RATE, Event, Final, Partial
 
 
+def preload_native_library():
+    """Load moonshine.dll now. It fails to initialise (WinError 1114) if Qt is loaded first."""
+    from moonshine_voice.moonshine_api import _MoonshineLib
+
+    _MoonshineLib()
+
+
 class MoonshineEngine:
     """Adapts a moonshine_voice Stream to EchoLine's Partial/Final events."""
 
