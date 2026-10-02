@@ -45,3 +45,57 @@ def test_resampled_wav_keeps_its_amplitude(evaluator, tmp_path):
     assert sample_rate == 16000
     assert audio.dtype.name == 'int16'
     assert abs(int(audio.max()) - 10000) < 500
+
+
+class FakeKaldiRecognizer:
+    """Returns Vosk-shaped JSON: one finalized utterance, then the final flush."""
+
+    def __init__(self):
+        self.words_enabled = False
+        self.results = ['{"text": "hello world", "result": ['
+                        '{"word": "hello", "conf": 0.8}, {"word": "world", "conf": 0.6}]}']
+
+    def SetWords(self, enabled):
+        self.words_enabled = enabled
+
+    def AcceptWaveform(self, data):
+        return bool(self.results)
+
+    def Result(self):
+        return self.results.pop()
+
+    def PartialResult(self):
+        return '{"partial": ""}'
+
+    def FinalResult(self):
+        if not self.words_enabled:
+            return '{"text": "bye"}'
+        return '{"text": "bye", "result": [{"word": "bye", "conf": 1.0}]}'
+
+
+@pytest.fixture
+def evaluator_with_fake_vosk(monkeypatch):
+    from transcription.speech_recognition import SpeechRecognizer
+
+    recognizer = SpeechRecognizer.__new__(SpeechRecognizer)
+    recognizer.model = object()
+    recognizer.recognizer = FakeKaldiRecognizer()
+    monkeypatch.setattr(audio_ml_evaluator, 'SpeechRecognizer', lambda: recognizer)
+    return audio_ml_evaluator.AudioEvaluator(verbose=False)
+
+
+def test_transcription_reports_mean_word_confidence(evaluator_with_fake_vosk):
+    import numpy as np
+
+    text, _, confidence = evaluator_with_fake_vosk.transcribe_audio(np.zeros(8000, dtype=np.int16))
+
+    assert text == "hello world bye"
+    assert confidence == pytest.approx(0.8)
+
+
+def test_transcription_counts_recognized_words(evaluator_with_fake_vosk):
+    import numpy as np
+
+    evaluator_with_fake_vosk.transcribe_audio(np.zeros(8000, dtype=np.int16))
+
+    assert evaluator_with_fake_vosk.performance_monitor.total_words == 3

@@ -193,28 +193,20 @@ class AudioEvaluator:
         
         try:
             # Process audio in chunks (simulate real-time processing)
+            recognizer = self.speech_recognizer.recognizer
+            recognizer.SetWords(True)  # Vosk only reports per-word confidence with this on
             chunk_size = 4000  # ~250ms chunks at 16kHz
-            transcription_parts = []
+            results = []
             
             for i in range(0, len(audio_data), chunk_size):
                 chunk = audio_data[i:i + chunk_size]
-                
-                # Process chunk
-                partial_text, is_partial = self.speech_recognizer.process_audio_data(chunk)
-                
-                if partial_text and not is_partial:
-                    transcription_parts.append(partial_text)
+                if recognizer.AcceptWaveform(chunk.tobytes()):
+                    results.append(json.loads(recognizer.Result()))
+            results.append(json.loads(recognizer.FinalResult()))
             
-            # Get final result
-            if self.speech_recognizer.recognizer:
-                final_result = json.loads(self.speech_recognizer.recognizer.FinalResult())
-                final_text = final_result.get('text', '')
-                confidence = final_result.get('confidence', 0.0)
-                
-                if final_text:
-                    transcription_parts.append(final_text)
-            else:
-                confidence = 0.0
+            transcription_parts = [r['text'] for r in results if r.get('text')]
+            words = [w for r in results for w in r.get('result', [])]
+            confidence = sum(w['conf'] for w in words) / len(words) if words else 0.0
             
             # Combine all transcription parts
             full_transcription = ' '.join(transcription_parts).strip()
@@ -222,7 +214,7 @@ class AudioEvaluator:
             processing_time = (time.time() - start_time) * 1000  # Convert to ms
             
             # Mark processing complete
-            self.performance_monitor.mark_audio_processed(audio_id, confidence)
+            self.performance_monitor.mark_audio_processed(audio_id, word_count=len(words), is_partial=False)
             self.performance_monitor.mark_ui_updated(audio_id)
             
             if self.verbose:
