@@ -48,11 +48,13 @@ class ConfusionMatrixAnalyzer:
                 # Error with reference word
                 if ref_word:
                     self.word_accuracy_data[ref_word]['total'] += 1
+                    self.confusion_data[ref_word][hyp_word or '<deleted>'] += 1
             elif operation == 'insert':
                 # Insertion - affects hypothesis word
                 if hyp_word:
                     # Count as error for the inserted word
                     self.word_accuracy_data[hyp_word]['total'] += 1
+                    self.confusion_data['<inserted>'][hyp_word] += 1
     
     def calculate_word_accuracies(self) -> Dict[str, float]:
         """Calculate individual word accuracies"""

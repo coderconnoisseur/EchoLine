@@ -261,9 +261,8 @@ class AudioEvaluator:
             reference_text, hypothesis_text
         )
         
-        # Add confusion data for analysis
-        if metrics.confusion_matrix:
-            self.confusion_analyzer.add_confusion_data(metrics.confusion_matrix)
+        # Feed the word alignment to the confusion analyzer
+        self.confusion_analyzer.add_operation_list(self.transcription_evaluator.last_operations)
         
         # Get performance metrics
         performance_metrics = self.performance_monitor.get_current_metrics()
@@ -463,36 +462,7 @@ Examples:
     
     # Generate confusion analysis if requested
     if args.confusion_analysis:
-        analyzer = ConfusionMatrixAnalyzer()
-        
-        if metrics.confusion_matrix:
-            analyzer.add_confusion_data(metrics.confusion_matrix)
-            
-            # Also add operations if available
-            if hasattr(evaluator, 'last_operations'):
-                analyzer.add_operation_list(evaluator.last_operations)
-        
-        # Generate detailed report
-        report = analyzer.generate_detailed_report()
-        
-        # Save text report
-        report_file = f"confusion_analysis_report.txt"
-        with open(report_file, 'w', encoding='utf-8') as f:
-            f.write(report)
-        print(f"Confusion analysis report saved to: {report_file}")
-        
-        # Generate visualizations
-        try:
-            analyzer.generate_visualization("confusion_heatmap.png")
-            print(f"Confusion matrix heatmap saved to: confusion_heatmap.png")
-        except Exception as e:
-            print(f"WARNING: Could not generate heatmap: {e}")
-        
-        try:
-            analyzer.analyze_phonetic_similarity("phonetic_analysis.png")
-            print(f"Phonetic analysis saved to: phonetic_analysis.png")
-        except Exception as e:
-            print(f"WARNING: Could not generate phonetic analysis: {e}")
+        evaluator.generate_confusion_analysis(args.output_prefix)
     
     # Exit with appropriate code
     wer = evaluation_results['transcription_metrics']['word_error_rate']
