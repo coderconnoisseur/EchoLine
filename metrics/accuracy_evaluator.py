@@ -176,7 +176,8 @@ class TranscriptionEvaluator:
         word_recall = correct_words / max(1, total_words)
         
         # F1 Score
-        word_f1 = 2 * (word_precision * word_recall) / max(1, word_precision + word_recall)
+        precision_plus_recall = word_precision + word_recall
+        word_f1 = 2 * word_precision * word_recall / precision_plus_recall if precision_plus_recall else 0.0
         
         # Character accuracy
         char_accuracy = 1.0 - cer
