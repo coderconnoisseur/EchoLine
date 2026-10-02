@@ -56,3 +56,13 @@ def test_report_lists_word_accuracy_from_alignment():
 
     assert "'cat' → 'bat' (1 times)" in report
     assert "'the' - 1.000 accuracy (2 occurrences)" in report
+
+
+def test_heatmap_is_written_to_disk(tmp_path):
+    analyzer = ConfusionMatrixAnalyzer()
+    analyzer.add_confusion_data({'cat': {'bat': 2}, 'dog': {'fog': 1}})
+    output = tmp_path / "heatmap.png"
+
+    analyzer.generate_visualization(str(output))
+
+    assert output.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"

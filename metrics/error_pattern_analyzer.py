@@ -1,6 +1,5 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
 from collections import defaultdict
 import re
 from typing import Dict, List, Tuple
@@ -210,13 +209,13 @@ class ConfusionMatrixAnalyzer:
             
             # Create heatmap
             plt.figure(figsize=(12, 10))
-            sns.heatmap(matrix, 
-                       xticklabels=words, 
-                       yticklabels=words,
-                       annot=True, 
-                       fmt='g',
-                       cmap='Reds',
-                       cbar_kws={'label': 'Confusion Count'})
+            plt.imshow(matrix, cmap='Reds')
+            plt.colorbar(label='Confusion Count')
+            for (row, col), count in np.ndenumerate(matrix):
+                if count:
+                    plt.text(col, row, f"{count:g}", ha='center', va='center')
+            plt.xticks(range(len(words)), words)
+            plt.yticks(range(len(words)), words)
             
             plt.title('Word Confusion Matrix\n(Reference Words → Hypothesis Words)')
             plt.xlabel('Hypothesis Words')

@@ -6,7 +6,6 @@ vosk==0.3.45
 
 # Metrics Package Dependencies
 matplotlib>=3.5.0
-seaborn>=0.11.0
 psutil>=5.8.0
 
 # Audio file loading for evaluation (MP3/FLAC/WAV, resampling)
