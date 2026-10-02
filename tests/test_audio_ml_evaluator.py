@@ -133,3 +133,8 @@ def test_stereo_wav_is_mixed_down_to_mono(evaluator, tmp_path):
 
 def test_missing_audio_file_returns_nothing(evaluator, tmp_path):
     assert evaluator.load_audio_file(str(tmp_path / "missing.wav")) == (None, None, None)
+
+
+@pytest.mark.parametrize("wer, code", [(0.0, 0), (0.05, 0), (0.1, 1), (0.29, 1), (0.3, 2), (0.9, 2)])
+def test_cli_exit_code_reflects_word_error_rate(wer, code):
+    assert audio_ml_evaluator.exit_code_for_wer(wer) == code

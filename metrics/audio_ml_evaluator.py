@@ -7,11 +7,11 @@ uses EchoLine's transcription system to generate a hypothesis,
 and returns comprehensive ML evaluation metrics.
 
 Usage:
-    python audio_evaluator.py <audio_file> <reference_text> [options]
+    python -m metrics.audio_ml_evaluator <audio_file> <reference_text> [options]
     
 Example:
-    python audio_evaluator.py audio.wav "hello world this is a test"
-    python audio_evaluator.py audio.mp3 "the quick brown fox" --save-report
+    python -m metrics.audio_ml_evaluator audio.wav "hello world this is a test"
+    python -m metrics.audio_ml_evaluator audio.mp3 "the quick brown fox" --save-report
 """
 
 import sys
@@ -57,7 +57,7 @@ class AudioEvaluator:
         if not self.speech_recognizer.model:
             print("ERROR: Failed to initialize Vosk model!")
             print("Please ensure the Vosk model is downloaded and available.")
-            print("Run: python download_vosk_model.py")
+            print("See the README for where to put the model.")
             return False
         
         if self.verbose:
@@ -317,6 +317,12 @@ class AudioEvaluator:
         except Exception as e:
             print(f"ERROR: Error generating confusion analysis: {e}")
 
+def exit_code_for_wer(wer):
+    """0: good (< 10% WER), 1: acceptable (10-30%), 2: poor (>= 30%)"""
+    if wer < 0.1:
+        return 0
+    return 1 if wer < 0.3 else 2
+
 def main():
     """Main function for command-line usage"""
     parser = argparse.ArgumentParser(
@@ -324,9 +330,9 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python audio_evaluator.py audio.wav "hello world"
-  python audio_evaluator.py audio.mp3 "the quick brown fox jumps over the lazy dog" --save-report
-  python audio_evaluator.py test.flac "artificial intelligence" --confusion-analysis --verbose
+  python -m metrics.audio_ml_evaluator audio.wav "hello world"
+  python -m metrics.audio_ml_evaluator audio.mp3 "the quick brown fox jumps over the lazy dog" --save-report
+  python -m metrics.audio_ml_evaluator test.flac "artificial intelligence" --confusion-analysis --quiet
         """
     )
     
@@ -338,18 +344,13 @@ Examples:
                         help='Generate confusion matrix analysis and visualizations')
     parser.add_argument('--output-prefix', type=str,
                         help='Prefix for output files (default: auto-generated)')
-    parser.add_argument('--verbose', action='store_true', default=True,
-                        help='Enable verbose output (default: True)')
     parser.add_argument('--quiet', action='store_true',
                         help='Disable verbose output')
     
     args = parser.parse_args()
     
-    # Handle verbose flag
-    verbose = args.verbose and not args.quiet
-    
     # Initialize evaluator
-    evaluator = AudioEvaluator(verbose=verbose)
+    evaluator = AudioEvaluator(verbose=not args.quiet)
     
     if not evaluator.speech_recognizer or not evaluator.speech_recognizer.model:
         print("ERROR: Failed to initialize EchoLine speech recognizer")
@@ -391,15 +392,7 @@ Examples:
         evaluator.generate_confusion_analysis(args.output_prefix)
     
     # Exit with appropriate code
-    wer = evaluation_results['transcription_metrics']['word_error_rate']
-    if wer == 0.0:
-        sys.exit(0)  # Perfect transcription
-    elif wer < 0.1:
-        sys.exit(0)  # Very good (< 10% error)
-    elif wer < 0.3:
-        sys.exit(1)  # Acceptable (10-30% error)
-    else:
-        sys.exit(2)  # Poor (> 30% error)
+    sys.exit(exit_code_for_wer(evaluation_results['transcription_metrics']['word_error_rate']))
 
 if __name__ == "__main__":
     main()
