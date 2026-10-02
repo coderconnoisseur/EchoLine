@@ -3,6 +3,7 @@ PySide6==6.6.0
 numpy==1.24.3
 sounddevice==0.4.6
 vosk==0.3.45
+moonshine-voice==0.1.5
 
 # Metrics Package Dependencies
 matplotlib>=3.5.0
