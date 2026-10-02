@@ -37,7 +37,6 @@ except ImportError as e:
 # Audio processing libraries
 try:
     import librosa
-    import soundfile as sf
     AUDIO_LIBS_AVAILABLE = True
 except ImportError:
     print("Warning: librosa and soundfile not available. Only WAV files will be supported.")
