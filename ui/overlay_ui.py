@@ -2,6 +2,7 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QScrollArea, QA
 from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QRect, QEasingCurve
 from PySide6.QtGui import QShortcut, QKeySequence
 
+from ui.caption_buffer import CaptionBuffer
 from ui.caption_widget import CaptionLabel
 
 class YouTubeCaptionOverlay(QWidget):
@@ -15,9 +16,7 @@ class YouTubeCaptionOverlay(QWidget):
         self.signals.update_text.connect(self._update_caption_safe)
         
         # Caption state management
-        self.current_sentence = ""  # Complete sentence being built
-        self.partial_text = ""      # Current partial word/phrase
-        self.last_final_text = ""   # Last complete sentence
+        self.captions = CaptionBuffer()
         self.caption_label = None   # Current caption label
         
         # Setup UI components
@@ -172,33 +171,15 @@ class YouTubeCaptionOverlay(QWidget):
         """Update caption text with YouTube-style auto-scrolling behavior"""
         if not text.strip():
             # If empty text, show listening message
-            if not self.current_sentence and not self.partial_text:
+            if not self.captions.text:
                 self._add_caption_line("Listening for audio...", partial=True)
             return
 
         if is_partial:
-            # Partial text - update the caption label
-            self.partial_text = text
-            display_text = self.current_sentence
-            if display_text and self.partial_text:
-                display_text += " " + self.partial_text
-            elif self.partial_text:
-                display_text = self.partial_text
-
-            # Update the caption label
-            self._add_caption_line(display_text, partial=True)
+            self.captions.add_partial(text)
         else:
-            # Final text - update the caption label
-            new_sentence = text.strip()
-            if new_sentence == self.last_final_text:
-                return
-
-            display_text = self.current_sentence + " " + new_sentence if self.current_sentence else new_sentence
-            self._add_caption_line(display_text, partial=False)
-
-            self.current_sentence = display_text
-            self.partial_text = ""
-            self.last_final_text = new_sentence
+            self.captions.add_final(text)
+        self._add_caption_line(self.captions.text, partial=is_partial)
 
     def _add_caption_line(self, text, partial=False):
         """Add or update the caption label"""
