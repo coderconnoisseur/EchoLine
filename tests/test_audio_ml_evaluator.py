@@ -99,3 +99,37 @@ def test_transcription_counts_recognized_words(evaluator_with_fake_vosk):
     evaluator_with_fake_vosk.transcribe_audio(np.zeros(8000, dtype=np.int16))
 
     assert evaluator_with_fake_vosk.performance_monitor.total_words == 3
+
+
+def test_16khz_wav_loads_without_changing_samples(evaluator, tmp_path):
+    path = tmp_path / "tone.wav"
+    write_sine_wav(path, sample_rate=16000, amplitude=10000, seconds=1.0)
+
+    audio, sample_rate, duration = evaluator.load_audio_file(str(path))
+
+    assert sample_rate == 16000
+    assert duration == pytest.approx(1.0)
+    assert abs(int(audio.max()) - 10000) <= 1
+
+
+def test_stereo_wav_is_mixed_down_to_mono(evaluator, tmp_path):
+    import wave
+    import numpy as np
+
+    path = tmp_path / "stereo.wav"
+    frames = np.array([[1000, 3000]] * 1600, dtype=np.int16)
+    with wave.open(str(path), 'wb') as wav:
+        wav.setnchannels(2)
+        wav.setsampwidth(2)
+        wav.setframerate(16000)
+        wav.writeframes(frames.tobytes())
+
+    audio, _, _ = evaluator.load_audio_file(str(path))
+
+    assert audio.ndim == 1
+    assert len(audio) == 1600
+    assert abs(int(audio[800]) - 2000) <= 1
+
+
+def test_missing_audio_file_returns_nothing(evaluator, tmp_path):
+    assert evaluator.load_audio_file(str(tmp_path / "missing.wav")) == (None, None, None)

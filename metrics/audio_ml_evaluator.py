@@ -19,9 +19,7 @@ import os
 import argparse
 import json
 import time
-import wave
 import numpy as np
-from pathlib import Path
 
 # Add parent directory to path to import from transcription and metrics
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -34,14 +32,7 @@ except ImportError as e:
     print("Make sure you're running this from the EchoLine project directory")
     sys.exit(1)
 
-# Audio processing libraries
-try:
-    import librosa
-    AUDIO_LIBS_AVAILABLE = True
-except ImportError:
-    print("Warning: librosa and soundfile not available. Only WAV files will be supported.")
-    print("Install with: pip install librosa soundfile")
-    AUDIO_LIBS_AVAILABLE = False
+import librosa
 
 class AudioEvaluator:
     """Comprehensive audio evaluation using EchoLine transcription system"""
@@ -89,25 +80,10 @@ class AudioEvaluator:
             print(f"ERROR: Audio file not found: {audio_file_path}")
             return None, None, None
         
-        file_extension = Path(audio_file_path).suffix.lower()
-        
         try:
-            if file_extension == '.wav':
-                # Handle WAV files directly
-                audio_data, sample_rate = self._load_wav_file(audio_file_path)
-            elif AUDIO_LIBS_AVAILABLE:
-                # Handle other formats with librosa
-                audio_data, sample_rate = librosa.load(
-                    audio_file_path, 
-                    sr=16000,  # Resample to 16kHz for Vosk
-                    mono=True
-                )
-                # Convert to int16 format expected by Vosk
-                audio_data = (audio_data * 32767).astype(np.int16)
-            else:
-                print(f"ERROR: Unsupported audio format: {file_extension}")
-                print("Install librosa and soundfile for MP3/FLAC support: pip install librosa soundfile")
-                return None, None, None
+            # librosa handles WAV/MP3/FLAC, mixes down to mono and resamples to Vosk's 16kHz
+            audio_float, sample_rate = librosa.load(audio_file_path, sr=16000, mono=True)
+            audio_data = np.clip(np.round(audio_float * 32768), -32768, 32767).astype(np.int16)
             
             duration = len(audio_data) / sample_rate
             
@@ -122,48 +98,6 @@ class AudioEvaluator:
         except Exception as e:
             print(f"ERROR: Error loading audio file: {e}")
             return None, None, None
-    
-    def _load_wav_file(self, wav_file_path):
-        """Load WAV file using wave module"""
-        with wave.open(wav_file_path, 'rb') as wav_file:
-            frames = wav_file.getnframes()
-            sample_rate = wav_file.getframerate()
-            channels = wav_file.getnchannels()
-            sample_width = wav_file.getsampwidth()
-            
-            # Read audio data
-            audio_bytes = wav_file.readframes(frames)
-            
-            # Convert to numpy array
-            if sample_width == 2:  # 16-bit
-                audio_data = np.frombuffer(audio_bytes, dtype=np.int16)
-            elif sample_width == 4:  # 32-bit
-                audio_data = np.frombuffer(audio_bytes, dtype=np.int32)
-                # Convert to 16-bit
-                audio_data = (audio_data / 65536).astype(np.int16)
-            else:
-                raise ValueError(f"Unsupported sample width: {sample_width}")
-            
-            # Convert stereo to mono if needed
-            if channels == 2:
-                audio_data = audio_data.reshape(-1, 2).mean(axis=1).astype(np.int16)
-            
-            # Resample to 16kHz if needed
-            if sample_rate != 16000:
-                if AUDIO_LIBS_AVAILABLE:
-                    audio_data = librosa.resample(
-                        audio_data.astype(np.float32), 
-                        orig_sr=sample_rate, 
-                        target_sr=16000
-                    )
-                    # Samples are still on the int16 scale, so only clip and cast
-                    audio_data = np.clip(np.round(audio_data), -32768, 32767).astype(np.int16)
-                    sample_rate = 16000
-                else:
-                    print(f"WARNING: Audio sample rate is {sample_rate}Hz, but Vosk expects 16kHz")
-                    print("Results may be inaccurate. Install librosa for automatic resampling.")
-            
-            return audio_data, sample_rate
     
     def transcribe_audio(self, audio_data, audio_file_path=None):
         """
