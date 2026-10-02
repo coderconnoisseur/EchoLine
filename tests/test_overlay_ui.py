@@ -32,3 +32,14 @@ def test_caption_stays_bounded_over_a_long_session(overlay):
     shown = overlay.caption_label.text().split()
     assert len(shown) <= overlay.captions.max_words
     assert shown[-1] == "499"
+
+
+def test_overlay_keeps_the_newest_text_in_view(overlay):
+    from PySide6.QtWidgets import QApplication
+
+    overlay._update_caption_safe(" ".join(["longword"] * 30), is_partial=False)
+    QApplication.processEvents()
+
+    scrollbar = overlay.scroll_area.verticalScrollBar()
+    assert scrollbar.maximum() > 0
+    assert scrollbar.value() == scrollbar.maximum()
