@@ -73,6 +73,21 @@ def load_clip(wav_path: Path) -> np.ndarray:
     return pcm.astype(np.float32) / 32768
 
 
+def bench_engine(make, clips):
+    """Run every clip through a fresh engine (no state carried between clips)."""
+    results = []
+    for wav_path in clips:
+        engine = make()
+        try:
+            reference = wav_path.with_suffix(".txt").read_text()
+            results.append(run_clip(engine, load_clip(wav_path), reference, wav_path.stem))
+        finally:
+            close = getattr(engine, "close", None)
+            if close is not None:
+                close()     # native models leak gigabytes if left open across clips
+    return results
+
+
 def make_engine(name, vosk_model):
     if name == "vosk":
         from .engine.vosk_engine import VoskEngine
@@ -97,11 +112,7 @@ def main():
     report = {}
     print(f"{'engine':<18}{'WER':>8}{'RTF':>8}{'p95 feed ms':>13}{'first text s':>14}")
     for name in args.engines:
-        results = []
-        for wav_path in clips:
-            engine = make_engine(name, args.vosk_model)   # fresh engine: no state between clips
-            reference = wav_path.with_suffix(".txt").read_text()
-            results.append(run_clip(engine, load_clip(wav_path), reference, wav_path.stem))
+        results = bench_engine(lambda: make_engine(name, args.vosk_model), clips)
         summary = summarize(results)
         report[name] = {"summary": summary, "clips": [asdict(r) for r in results]}
         first = summary["first_text_s"]

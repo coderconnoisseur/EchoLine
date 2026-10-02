@@ -49,3 +49,10 @@ class MoonshineEngine:
     def flush(self) -> list[Final]:
         self._stream.stop()
         return [event for event in self._take() if isinstance(event, Final)]
+
+    def close(self):
+        """Release the native stream and model; the engine is unusable afterwards."""
+        self._stream.close()
+        transcriber = getattr(self, "_transcriber", None)
+        if transcriber is not None:
+            transcriber.close()

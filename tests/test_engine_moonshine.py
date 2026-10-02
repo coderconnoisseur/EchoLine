@@ -125,3 +125,20 @@ def test_real_tiny_model_transcribes_bundled_clip():
 
     finals = " ".join(e.text for e in events if isinstance(e, Final)).lower()
     assert "best of times" in finals
+
+
+def test_close_releases_the_native_transcriber():
+    class Closable:
+        closed = False
+
+        def close(self):
+            self.closed = True
+
+    stream, transcriber = FakeStream([]), Closable()
+    stream.close = lambda: setattr(stream, "closed", True)
+    engine = MoonshineEngine(stream)
+    engine._transcriber = transcriber
+
+    engine.close()
+
+    assert stream.closed and transcriber.closed

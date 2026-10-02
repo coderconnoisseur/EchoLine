@@ -58,3 +58,35 @@ def test_summary_weights_wer_by_reference_length():
     assert summary["rtf"] == pytest.approx(1.4 / 4)
     assert summary["p95_feed_ms"] == 30
     assert summary["first_text_s"] == pytest.approx(0.5)
+
+
+def test_each_engine_is_closed_after_its_clip(tmp_path):
+    # Loading a fresh model per clip without closing it leaked ~5 GB of native memory.
+    import wave
+
+    from echoline.bench import bench_engine
+
+    for name in ("a", "b"):
+        with wave.open(str(tmp_path / f"{name}.wav"), "wb") as wav:
+            wav.setnchannels(1)
+            wav.setsampwidth(2)
+            wav.setframerate(16000)
+            wav.writeframes(np.zeros(1600, np.int16).tobytes())
+        (tmp_path / f"{name}.txt").write_text("hello")
+
+    engines = []
+
+    class ClosableEngine(ScriptedEngine):
+        closed = False
+
+        def close(self):
+            self.closed = True
+
+    def make():
+        engines.append(ClosableEngine("hello"))
+        return engines[-1]
+
+    results = bench_engine(make, sorted(tmp_path.glob("*.wav")))
+
+    assert [r.clip for r in results] == ["a", "b"]
+    assert all(engine.closed for engine in engines)
