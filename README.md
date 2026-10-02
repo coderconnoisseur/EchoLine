@@ -1,7 +1,7 @@
 # EchoLine - Real-Time Speech-to-Text Overlay  
-![Python](https://img.shields.io/badge/Python-3.7%2B-blue?logo=python&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.8%2B-blue?logo=python&logoColor=white)
 ![Vosk](https://img.shields.io/badge/Vosk-Speech_Recognition-orange?logo=google-voice&logoColor=white)
-![PyQt5](https://img.shields.io/badge/GUI-PyQt5-green?logo=qt&logoColor=white)
+![PySide6](https://img.shields.io/badge/GUI-PySide6-green?logo=qt&logoColor=white)
 ![Accessibility](https://img.shields.io/badge/Accessibility-Live_Captions-brightgreen)
 ![Platform](https://img.shields.io/badge/Platform-Windows-lightgrey)
 
@@ -18,7 +18,7 @@ EchoLine is a real-time speech-to-text overlay application that displays live ca
 - Easy exit using **Ctrl + Q** or the **close button**  
 
 ## Requirements  
-- Python 3.7 or higher  
+- Python 3.8 or higher  
 - Windows operating system  
 - Stereo Mix enabled in sound settings  
 
@@ -65,6 +65,16 @@ Speak into your microphone or play any audio to see live captions
 Click and drag to move the overlay window
 
 The window automatically scrolls to show the latest text
+
+## Running the tests
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest
+```
+
+The tests use fake Vosk recognizers and Qt's offscreen platform, so they need
+neither the speech model nor an audio device.
 
 ## Benchmarking 
 
