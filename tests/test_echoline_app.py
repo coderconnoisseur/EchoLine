@@ -142,3 +142,15 @@ def test_latency_display_is_updated_on_the_gui_thread(running):
     wait_until(lambda: threads)
 
     assert threads == [threading.main_thread()]
+
+
+def test_failed_model_load_is_reported():
+    def offline_engine():
+        raise ConnectionError("could not download model")
+
+    echoline = EchoLineApp(FakeSource(), offline_engine)
+    echoline.start()
+    try:
+        assert wait_until(lambda: echoline.status.property("state") == "model-error")
+    finally:
+        echoline.shutdown()

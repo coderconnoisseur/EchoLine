@@ -1,5 +1,6 @@
 import threading
 import time
+import traceback
 
 from PySide6.QtCore import QObject, Qt, Signal
 from PySide6.QtQml import QQmlApplicationEngine
@@ -43,8 +44,16 @@ class EchoLineApp:
 
     def start(self):
         self.status.set_state("loading")
-        threading.Thread(target=lambda: self.bridge.engine_ready.emit(self.engine_factory()),
-                         name="engine-load", daemon=True).start()
+        threading.Thread(target=self._load_engine, name="engine-load", daemon=True).start()
+
+    def _load_engine(self):
+        try:
+            engine = self.engine_factory()
+        except Exception:
+            traceback.print_exc()
+            self.bridge.status.emit("model-error")
+            return
+        self.bridge.engine_ready.emit(engine)
 
     def _on_engine_ready(self, engine):
         self.worker = EngineWorker(

@@ -38,7 +38,7 @@ Window {
                 objectName: "statusPill"
                 visible: status.state !== "listening"
                 radius: height / 2
-                color: status.state === "no-device" ? "#b3261e" : "#5a5a5a"
+                color: status.state === "no-device" || status.state === "model-error" ? "#b3261e" : "#5a5a5a"
                 width: statusText.implicitWidth + 20
                 height: statusText.implicitHeight + 6
                 anchors.horizontalCenter: parent.horizontalCenter
@@ -48,6 +48,7 @@ Window {
                     color: "white"
                     font.pixelSize: 13
                     text: ({ "loading": "Loading speech model…", "no-device": "No audio device",
+                             "model-error": "Speech model unavailable — check your connection and restart",
                              "lagging": "Catching up…" })[status.state] || status.state
                 }
             }
