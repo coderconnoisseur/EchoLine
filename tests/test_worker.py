@@ -30,15 +30,21 @@ def collect():
     return events, lagging, (lambda evs, ts: events.append((evs, ts))), lagging.append
 
 
-def test_events_are_delivered_with_capture_time_of_newest_block():
+def test_queued_audio_is_fed_as_one_chunk_stamped_with_the_newest_block():
+    # Moonshine costs far less per second when fed big chunks (1 s: 0.33x real
+    # time, 50 ms: 0.74x). Feeding a backlog block by block kept a lagging
+    # engine lagging; one chunk lets it catch up.
     events, lagging, on_events, on_lagging = collect()
-    worker = EngineWorker(RecordingEngine(), on_events, on_lagging)
+    engine = RecordingEngine()
+    worker = EngineWorker(engine, on_events, on_lagging)
 
     worker.push(block(30), captured_at=1.0)
     worker.push(block(30), captured_at=1.03)
+    worker.push(block(30), captured_at=1.06)
     worker.process_pending()
 
-    assert events == [([Partial(0, "hi")], 1.0), ([Partial(0, "hi")], 1.03)]
+    assert engine.fed == [3 * 480]
+    assert events == [([Partial(0, "hi")], 1.06)]
 
 
 def test_backlog_drops_oldest_audio_and_flags_lagging():
@@ -118,6 +124,7 @@ def test_engine_errors_do_not_kill_the_worker():
     worker = EngineWorker(Flaky(), on_events, on_lagging)
 
     worker.push(block(30), captured_at=1.0)
+    worker.process_pending()                  # this feed raises
     worker.push(block(30), captured_at=2.0)
     worker.process_pending()
 

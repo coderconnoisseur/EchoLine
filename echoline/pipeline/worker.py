@@ -3,6 +3,8 @@ import threading
 import time
 import traceback
 
+import numpy as np
+
 from ..engine.base import SAMPLE_RATE
 
 
@@ -57,15 +59,17 @@ class EngineWorker:
             self._last_drop = now
         # Stay "lagging" until caught up for a while, so the status does not flicker.
         self._set_lagging(self._last_drop is not None and now - self._last_drop < self._lagging_hold)
-        for samples, captured_at in batch:
-            try:
-                with self._engine_lock:
-                    events = self._engine.feed(samples)
-            except Exception:
-                traceback.print_exc()
-                continue
-            if events:
-                self._on_events(events, captured_at)
+        # One feed for the whole batch: per-call cost dominates, so a backlog fed
+        # block by block never shrinks, while one big chunk lets the engine catch up.
+        samples = np.concatenate([samples for samples, _ in batch])
+        try:
+            with self._engine_lock:
+                events = self._engine.feed(samples)
+        except Exception:
+            traceback.print_exc()
+            return
+        if events:
+            self._on_events(events, batch[-1][1])
 
     def flush(self):
         """Finish the current utterance (e.g. on pause) and keep running."""
