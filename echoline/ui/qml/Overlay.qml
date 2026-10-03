@@ -50,6 +50,23 @@ Window {
             }
         }
 
+        HoverHandler {
+            id: overlayHover
+            objectName: "overlayHover"
+            property bool forceHovered: false        // for tests
+            readonly property bool active: hovered || forceHovered
+            onActiveChanged: if (!active) hoverGrace.restart()
+        }
+        Timer { id: hoverGrace; interval: 600 }
+
+        HoverBar {
+            anchors { top: parent.top; right: parent.right; margins: 6 }
+            z: 2
+            opacity: overlayHover.active || hoverGrace.running ? 1 : 0
+            visible: opacity > 0
+            Behavior on opacity { NumberAnimation { duration: 200 } }
+        }
+
         TapHandler {
             acceptedButtons: Qt.RightButton
             onTapped: contextMenu.popup()

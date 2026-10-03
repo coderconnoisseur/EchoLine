@@ -274,3 +274,33 @@ def test_subtitle_cross_fades_from_the_previous_phrase(overlay):
 
     settle()
     assert outgoing.property("opacity") == 0
+
+
+def test_hover_bar_starts_hidden(tmp_path):
+    from PySide6.QtGui import QCursor
+
+    # The offscreen cursor starts at (10, 10), over a window at (0, 0); move it first.
+    QCursor.setPos(1300, 600)
+    engine = QQmlApplicationEngine()
+    warnings = []
+    engine.warnings.connect(lambda items: warnings.extend(w.toString() for w in items))
+    keep = CaptionModel(), OverlayStatus(), SettingsStore(Settings(), tmp_path / "s.json")   # QML does not own these
+    window = load_overlay(engine, *keep)
+    try:
+        settle()
+        bar = window.findChild(QObject, "hoverBar")
+        assert bar is not None and bar.property("opacity") == 0
+        assert warnings == []
+    finally:
+        window.close()
+        engine.deleteLater()
+
+
+def test_hover_bar_appears_while_hovered(overlay):
+    window, _, _, _ = overlay
+    bar = window.findChild(QObject, "hoverBar")
+
+    window.findChild(QObject, "overlayHover").setProperty("forceHovered", True)
+    settle()
+
+    assert bar.property("opacity") == 1
