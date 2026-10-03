@@ -1,35 +1,68 @@
 import QtQuick
+import QtQuick.Controls
 import QtQuick.Window
 
 Window {
     id: overlay
     objectName: "overlay"
-    flags: Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool
+    readonly property var s: settingsStore.values
+    // Always on top until M3 adds a tray icon: a Tool window has no taskbar button,
+    // so once covered by a full-screen video it could not be brought back.
+    flags: Qt.FramelessWindowHint | Qt.Tool | Qt.WindowStaysOnTopHint
     color: "transparent"
     visible: true
-    width: Screen.width * 0.35
-    height: panel.implicitHeight
-    x: (Screen.width - width) / 2
-    y: Screen.height * 0.85 - height / 2
+    width: Screen.width * s.width_percent / 100
+    height: Math.min(panel.implicitHeight, maxHeight)
 
-    readonly property int fontSize: 26
     readonly property real lineHeight: metrics.height * 1.15
+    readonly property real maxHeight: Screen.height * 0.4
+    // Height left for captions once the status pill, latency line and padding are placed,
+    // so a big font on a small screen shrinks the captions instead of spilling out.
+    readonly property real captionRoom: maxHeight - 24
+        - (statusPill.visible ? statusPill.height + content.spacing : 0)
+        - (latencyText.visible ? latencyText.height + content.spacing : 0)
+    readonly property real captionHeight: Math.min(lineHeight * s.line_count, captionRoom)
 
-    FontMetrics { id: metrics; font.pixelSize: overlay.fontSize; font.family: "Segoe UI" }
+    FontMetrics {
+        id: metrics
+        font.family: overlay.s.font_family
+        font.pixelSize: overlay.s.font_size
+        font.weight: overlay.s.font_weight
+    }
 
     Shortcut { sequences: ["Ctrl+Q", "Escape"]; onActivated: Qt.quit() }
+    Shortcut { sequence: "Ctrl+,"; onActivated: controller.openSettings() }
 
     Rectangle {
         id: panel
+        objectName: "panel"
         anchors.fill: parent
         implicitHeight: content.implicitHeight + 24
-        radius: 14
-        color: Qt.rgba(0, 0, 0, 0.72)
+        radius: overlay.s.corner_radius
+        color: Qt.alpha(overlay.s.background_color, overlay.s.background_opacity)
 
-        DragHandler { target: null; onActiveChanged: if (active) overlay.startSystemMove() }
+        DragHandler {
+            target: null
+            onActiveChanged: if (active) {
+                if (controller)
+                    controller.dragStarted()
+                overlay.startSystemMove()
+            }
+        }
+
+        TapHandler {
+            acceptedButtons: Qt.RightButton
+            onTapped: contextMenu.popup()
+        }
+        Menu {
+            id: contextMenu
+            MenuItem { text: "Settings…"; onTriggered: controller.openSettings() }
+            MenuItem { text: "Quit"; onTriggered: controller.quit() }
+        }
 
         Column {
             id: content
+            objectName: "content"
             anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: 18 }
             spacing: 4
 
@@ -49,50 +82,53 @@ Window {
                     font.pixelSize: 13
                     text: ({ "loading": "Loading speech model…", "no-device": "No audio device",
                              "model-error": "Speech model unavailable — check your connection and restart",
+                             "settings-reset": "Settings were damaged and have been reset",
                              "lagging": "Catching up…" })[status.state] || status.state
                 }
             }
 
-            ListView {
-                id: captionList
-                objectName: "captionList"
+            // Lines stack in a column anchored to the bottom of a clipped area, so the
+            // newest text always sits at the bottom edge whatever the fonts or wrapping.
+            Item {
+                id: captionArea
+                objectName: "captionArea"
                 width: parent.width
-                height: overlay.lineHeight * maxLines
+                visible: overlay.s.caption_mode === "rolling"
+                height: visible ? overlay.captionHeight : 0
                 clip: true
-                interactive: false
-                model: captions
-                spacing: 0
 
-                onContentHeightChanged: scrollToEnd.restart()
-                onCountChanged: scrollToEnd.restart()
-                Timer { id: scrollToEnd; interval: 0; onTriggered: captionList.positionViewAtEnd() }
-                Behavior on contentY { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+                Column {
+                    id: captionColumn
+                    anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+                    move: Transition { NumberAnimation { property: "y"; duration: 180; easing.type: Easing.OutCubic } }
 
-                delegate: Text {
-                    required property var model
-                    width: captionList.width
-                    wrapMode: Text.Wrap
-                    horizontalAlignment: Text.AlignHCenter
-                    color: "white"
-                    opacity: model.final ? 1.0 : 0.85
-                    font.pixelSize: overlay.fontSize
-                    font.family: "Segoe UI"
-                    lineHeight: 1.15
-                    style: Text.Outline
-                    styleColor: Qt.rgba(0, 0, 0, 0.6)
-                    text: model.text
-                    Behavior on opacity { NumberAnimation { duration: 120 } }
+                    Repeater {
+                        objectName: "captionLines"
+                        model: captions
+                        delegate: CaptionText {
+                            required property var model
+                            objectName: "captionLine"
+                            property int utteranceId: model.utteranceId
+                            width: captionColumn.width
+                            text: model.text
+                            opacity: 0
+                            Component.onCompleted: opacity = Qt.binding(() => model.final ? 1.0 : 0.85)
+                            Behavior on opacity { NumberAnimation { duration: 160 } }
+                        }
+                    }
                 }
+            }
 
-                add: Transition {
-                    NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 160 }
-                    NumberAnimation { property: "y"; from: captionList.height; duration: 180; easing.type: Easing.OutCubic }
-                }
-                remove: Transition { NumberAnimation { property: "opacity"; to: 0; duration: 160 } }
-                displaced: Transition { NumberAnimation { property: "y"; duration: 180; easing.type: Easing.OutCubic } }
+            SubtitleView {
+                width: parent.width
+                height: visible ? overlay.captionHeight : 0
+                visible: overlay.s.caption_mode === "subtitle"
+                s: overlay.s
+                lineHeight: overlay.lineHeight
             }
 
             Text {
+                id: latencyText
                 visible: status.showLatency
                 anchors.horizontalCenter: parent.horizontalCenter
                 color: "#bbbbbb"
@@ -100,5 +136,17 @@ Window {
                 text: status.latency
             }
         }
+    }
+
+    component CaptionText: Text {
+        wrapMode: Text.Wrap
+        horizontalAlignment: Text.AlignHCenter
+        color: overlay.s.text_color
+        font.family: overlay.s.font_family
+        font.pixelSize: overlay.s.font_size
+        font.weight: overlay.s.font_weight
+        lineHeight: 1.15
+        style: ({ "outline": Text.Outline, "shadow": Text.Raised, "none": Text.Normal })[overlay.s.outline]
+        styleColor: overlay.s.outline_color
     }
 }

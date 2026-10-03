@@ -47,11 +47,12 @@ class OverlayStatus(QObject):
     showLatency = Property(bool, _get_show_latency, notify=showLatencyChanged)
 
 
-def load_overlay(engine, captions, status, max_lines=2):
+def load_overlay(engine, captions, status, settings_store, controller=None):
     context = engine.rootContext()
     context.setContextProperty("captions", captions)
     context.setContextProperty("status", status)
-    context.setContextProperty("maxLines", max_lines)
+    context.setContextProperty("settingsStore", settings_store)
+    context.setContextProperty("controller", controller)
     errors = []
     engine.warnings.connect(lambda items: errors.extend(w.toString() for w in items))
     engine.load(QUrl.fromLocalFile(str(QML_DIR / "Overlay.qml")))

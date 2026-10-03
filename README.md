@@ -13,7 +13,9 @@ offline and nothing you hear leaves your computer.
 - Real-time captions of any audio playing on your PC, no Stereo Mix needed
 - Follows your output device: switch to headphones or Bluetooth and captions keep going
 - Fully offline after a one-time model download
-- Always-on-top, translucent overlay with smoothly rolling caption lines
+- Always-on-top, translucent overlay with smoothly rolling caption lines, or film-style subtitle blocks
+- Four caption themes (Classic CC, Netflix, Minimal, High contrast) and full control over font, size, colors, outline, background, width and line count
+- Remembers where you put it; snap to the top, center or bottom of the screen
 - Drag the overlay anywhere; quit with **Ctrl + Q** or **Esc**
 
 ## Requirements
@@ -42,6 +44,13 @@ offline and nothing you hear leaves your computer.
 ### Options
 - `--model tiny|small|medium`: larger models are more accurate but need a faster CPU (default: `tiny`)
 - `--show-latency`: show how long captions take to appear (p50 / p95)
+
+## Customizing
+
+Right-click the captions (or press **Ctrl + ,** while they are focused) to open
+settings. Changes preview live. Settings are stored in
+`%APPDATA%\EchoLine\settings.json`; if that file is damaged, EchoLine backs it
+up as `settings.json.bak` and starts with defaults.
 
 ## Running the tests
 

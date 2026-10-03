@@ -10,6 +10,8 @@ from PySide6.QtGui import QGuiApplication
 
 from echoline.app import EchoLineApp
 from echoline.engine.base import Final, Partial
+from echoline.settings.model import Settings
+from echoline.settings.store import SettingsStore
 
 app = QGuiApplication.instance() or QGuiApplication([])
 
@@ -48,9 +50,10 @@ def wait_until(condition, timeout=3.0):
 
 
 @pytest.fixture
-def running():
+def running(tmp_path):
     source = FakeSource()
-    echoline = EchoLineApp(source, EchoEngine, show_latency=True)
+    echoline = EchoLineApp(source, EchoEngine, SettingsStore(Settings(), tmp_path / "settings.json"),
+                           show_latency=True)
     echoline.start()
     assert wait_until(lambda: echoline.status.property("state") == "listening")
     yield echoline, source
@@ -119,10 +122,12 @@ def test_shutdown_closes_the_overlay_window(running):
     # EchoLineApp, crashing the process.
     echoline, _ = running
 
+    import shiboken6
+
     echoline.shutdown()
     echoline.shutdown()                      # idempotent: safe to call twice
 
-    assert not echoline.window.isVisible()
+    assert not shiboken6.isValid(echoline.window)     # deleted along with the QML engine
 
 
 def test_latency_display_is_updated_on_the_gui_thread(running):
@@ -144,13 +149,147 @@ def test_latency_display_is_updated_on_the_gui_thread(running):
     assert threads == [threading.main_thread()]
 
 
-def test_failed_model_load_is_reported():
+def test_failed_model_load_is_reported(tmp_path):
     def offline_engine():
         raise ConnectionError("could not download model")
 
-    echoline = EchoLineApp(FakeSource(), offline_engine)
+    echoline = EchoLineApp(FakeSource(), offline_engine, SettingsStore(Settings(), tmp_path / "s.json"))
     echoline.start()
     try:
         assert wait_until(lambda: echoline.status.property("state") == "model-error")
     finally:
         echoline.shutdown()
+
+
+def test_snap_moves_window_and_remembers_position(running):
+    echoline, _ = running
+
+    echoline.controller.snap("top")
+
+    # Startup placement may already have saved a position; wait for the snapped one.
+    assert wait_until(lambda: echoline.settings_store.settings.position
+                      == [echoline.window.x(), echoline.window.y()], timeout=2)
+    assert echoline.window.y() < 100
+
+
+def test_shutdown_saves_pending_settings(tmp_path):
+    from echoline.settings.model import load_settings
+
+    path = tmp_path / "settings.json"
+    store = SettingsStore(Settings(), path, save_delay_ms=60_000)
+    echoline = EchoLineApp(FakeSource(), EchoEngine, store)
+    store.setValue("font_size", 33)
+
+    echoline.shutdown()
+
+    assert load_settings(path)[0].font_size == 33
+
+
+def test_reset_settings_are_announced(tmp_path):
+    echoline = EchoLineApp(FakeSource(), EchoEngine, SettingsStore(Settings(), tmp_path / "s.json"),
+                           settings_reset=True)
+    echoline.start()
+    try:
+        assert wait_until(lambda: echoline.status.property("state") == "settings-reset")
+        wait_until(lambda: False, timeout=0.3)
+        assert echoline.status.property("state") == "settings-reset"     # not hidden by "listening"
+    finally:
+        echoline.shutdown()
+
+
+def test_snap_stays_on_the_overlays_screen(running):
+    # Snapping used to always jump to the primary monitor.
+    echoline, _ = running
+    echoline.window.setPosition(1366 + 200, 300)       # second monitor
+    wait_until(lambda: echoline.window.x() > 1366)
+
+    echoline.controller.snap("top")
+    wait_until(lambda: False, timeout=0.2)
+
+    assert echoline.window.x() > 1366
+
+
+def test_snapped_overlay_stays_anchored_when_it_grows(running):
+    # A bottom-snapped overlay grew downward into the taskbar when lines were added.
+    echoline, _ = running
+    echoline.controller.snap("bottom")
+    wait_until(lambda: False, timeout=0.2)
+    height, bottom = echoline.window.height(), echoline.window.y() + echoline.window.height()
+
+    echoline.settings_store.setValue("line_count", 3)
+    assert wait_until(lambda: echoline.window.height() > height, timeout=1)
+    wait_until(lambda: False, timeout=0.2)
+
+    assert echoline.window.y() + echoline.window.height() == bottom
+
+
+def test_dragging_releases_the_snap(running):
+    echoline, _ = running
+    echoline.controller.snap("bottom")
+    wait_until(lambda: False, timeout=0.2)
+
+    echoline.controller.dragStarted()
+    y = echoline.window.y()
+    echoline.settings_store.setValue("line_count", 3)
+    wait_until(lambda: False, timeout=0.3)
+
+    assert echoline.window.y() == y
+
+
+def test_position_moved_just_before_quit_is_saved(running):
+    echoline, _ = running
+    echoline.window.setPosition(123, 145)
+
+    echoline.shutdown()
+
+    assert echoline.settings_store.settings.position == [123, 145]
+
+
+def test_first_run_overlay_is_anchored_to_the_bottom(running):
+    echoline, _ = running                     # fresh settings: no saved position
+    height, bottom = echoline.window.height(), echoline.window.y() + echoline.window.height()
+
+    echoline.settings_store.setValue("line_count", 3)
+    assert wait_until(lambda: echoline.window.height() > height, timeout=1)
+    wait_until(lambda: False, timeout=0.2)
+
+    assert echoline.window.y() + echoline.window.height() == bottom
+
+
+def test_blur_region_follows_window_size_and_radius(running, monkeypatch):
+    echoline, _ = running
+    calls = []
+    monkeypatch.setattr("echoline.app.set_blur",
+                        lambda hwnd, enabled, size, radius: calls.append((enabled, size, radius)))
+
+    echoline.settings_store.setValue("blur_behind", True)
+    echoline.settings_store.setValue("corner_radius", 6)
+    height = echoline.window.height()
+    echoline.settings_store.setValue("line_count", 3)
+    wait_until(lambda: echoline.window.height() > height, timeout=1)
+    echoline.settings_store.setValue("blur_behind", False)
+
+    assert calls[0][0] is True
+    assert any(radius == 6 for _, _, radius in calls)
+    assert len({size for enabled, size, _ in calls if enabled}) >= 2      # re-clipped after resizing
+    assert calls[-1][0] is False
+
+
+def test_no_qml_errors_when_python_frees_objects_after_shutdown(tmp_path):
+    # Seen on quit: "Cannot read property 'values' of null" etc. When main()
+    # returned, Python freed the store and models while QML bindings were alive.
+    import shiboken6
+
+    store = SettingsStore(Settings(), tmp_path / "s.json")
+    echoline = EchoLineApp(FakeSource(), EchoEngine, store)
+    echoline.open_settings()
+    errors = []
+    echoline.qml.warnings.connect(lambda items: errors.extend(w.toString() for w in items))
+
+    echoline.shutdown()
+    for obj in (echoline.settings_store, echoline.captions, echoline.status, echoline.controller):
+        if shiboken6.isValid(obj):
+            shiboken6.delete(obj)
+    wait_until(lambda: False, timeout=0.3)
+
+    assert errors == []

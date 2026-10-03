@@ -62,3 +62,21 @@ def test_unicode_text_round_trips():
     model.apply([Final(0, "café — naïve 👍")])
 
     assert rows(model)[0][1] == "café — naïve 👍"
+
+
+def test_latest_utterance_is_exposed_for_subtitle_mode():
+    model = CaptionModel()
+    seen = []
+    model.latestChanged.connect(lambda: seen.append((model.property("latestId"), model.property("latestText"))))
+
+    model.apply([Final(0, "one.")])
+    model.apply([Partial(1, "tw")])
+    model.apply([Partial(1, "two")])
+
+    assert seen == [(0, "one."), (1, "tw"), (1, "two")]
+
+
+def test_latest_is_empty_before_any_caption():
+    model = CaptionModel()
+
+    assert (model.property("latestId"), model.property("latestText")) == (-1, "")
