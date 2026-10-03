@@ -68,7 +68,11 @@ class Setup(QObject):
     def _first_run(self):
         self._fetch("tiny")
         self._phase_from_worker.emit("checking")
-        model = self._check_hardware()
+        try:
+            model = self._check_hardware()
+        except Exception:
+            traceback.print_exc()
+            model = "tiny"                       # already downloaded and the safe choice
         if model != "tiny":
             self._progress_from_worker.emit(0.0)
             self._phase_from_worker.emit("downloading")
@@ -125,6 +129,7 @@ class Setup(QObject):
         self._app.settings_store.setValue("onboarded", True)
         self._app.settings_store.save_now()
         self._app.close_onboarding()
+        self._app.set_visible(True)              # also when the sound-test step was skipped
 
     @Slot()
     def windowClosed(self):

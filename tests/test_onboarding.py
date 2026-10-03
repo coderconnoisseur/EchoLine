@@ -154,3 +154,23 @@ def test_failed_switch_keeps_the_old_model_and_says_why(tmp_path):
     assert wait_until(lambda: setup.property("phase") == "idle" and fake.status.notice)
     assert fake.settings_store.settings.model == "tiny"
     assert ("reload_engine",) not in fake.calls
+
+
+def test_closing_after_ready_shows_the_captions(tmp_path):
+    fake, setup = make(tmp_path)
+    setup.begin()
+    assert wait_until(lambda: setup.property("phase") == "ready")
+    setup.windowClosed()                         # skipped Next on step 0
+    assert ("set_visible", True) in fake.calls
+
+
+def test_failed_hardware_check_falls_back_to_tiny(tmp_path):
+    fake = FakeApp(tmp_path)
+
+    def broken_check():
+        raise RuntimeError("native error")
+
+    setup = Setup(fake, download=Downloads(), check_hardware=broken_check, is_downloaded=lambda name: False)
+    setup.begin()
+    assert wait_until(lambda: setup.property("phase") in ("ready", "error"))
+    assert setup.property("phase") == "ready" and fake.settings_store.settings.model == "tiny"
