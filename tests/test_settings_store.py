@@ -70,3 +70,18 @@ def test_save_now_flushes_a_pending_save(tmp_path):
 
     assert load_settings(path)[0].line_count == 3
     assert not store.pending_save
+
+
+def test_failed_save_is_reported_not_raised(tmp_path, monkeypatch):
+    # A locked settings folder raised at shutdown and skipped stopping audio.
+    store = SettingsStore(Settings(), tmp_path / "s.json", save_delay_ms=10_000)
+
+    def locked(settings, path):
+        raise PermissionError("locked by another program")
+
+    monkeypatch.setattr("echoline.settings.store.save_settings", locked)
+    store.setValue("line_count", 3)
+
+    store.save_now()
+
+    assert store.pending_save          # still pending; a later save can retry

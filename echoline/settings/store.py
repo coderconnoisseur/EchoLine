@@ -1,3 +1,4 @@
+import traceback
 from dataclasses import asdict, replace
 
 from PySide6.QtCore import Property, QObject, QTimer, Signal, Slot
@@ -55,5 +56,9 @@ class SettingsStore(QObject):
     def save_now(self):
         if self.pending_save:
             self._timer.stop()
-            save_settings(self.settings, self.path)
+            try:
+                save_settings(self.settings, self.path)
+            except OSError:
+                traceback.print_exc()       # keep running; the next change retries
+                return
             self.pending_save = False
