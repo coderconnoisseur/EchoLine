@@ -13,7 +13,7 @@ from .pipeline.latency import LatencyTracker
 from .pipeline.worker import EngineWorker
 from .ui.fonts import caption_fonts
 from .ui.overlay import QML_DIR, OverlayStatus, load_overlay
-from .ui.blur import set_acrylic
+from .ui.blur import set_blur
 from .ui.placement import clamp_to_screen, snap_position
 
 
@@ -92,14 +92,24 @@ class EchoLineApp:
         self.window.xChanged.connect(self._save_position.start)
         self.window.yChanged.connect(self._save_position.start)
 
+        self._blur_applied = None
         self._apply_blur()
         settings_store.valuesChanged.connect(self._apply_blur)
+        self.window.widthChanged.connect(self._apply_blur)
+        self.window.heightChanged.connect(self._apply_blur)
 
     def _apply_blur(self):
-        enabled = self.settings_store.settings.blur_behind
-        if enabled != getattr(self, "_blur_applied", None):
-            self._blur_applied = enabled
-            set_acrylic(int(self.window.winId()), enabled)
+        settings = self.settings_store.settings
+        scale = self.window.devicePixelRatio()
+        size = (round(self.window.width() * scale), round(self.window.height() * scale))
+        state = (settings.blur_behind, size, round(settings.corner_radius * scale))
+        if not settings.blur_behind:
+            state = (False, None, None)      # nothing to re-clip while blur is off
+        if state != self._blur_applied:
+            if state[0] or self._blur_applied is not None:
+                set_blur(int(self.window.winId()), settings.blur_behind,
+                         size, round(settings.corner_radius * scale))
+            self._blur_applied = state
 
     def _screen_rects(self):
         primary = QGuiApplication.primaryScreen()

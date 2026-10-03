@@ -252,3 +252,22 @@ def test_first_run_overlay_is_anchored_to_the_bottom(running):
     wait_until(lambda: False, timeout=0.2)
 
     assert echoline.window.y() + echoline.window.height() == bottom
+
+
+def test_blur_region_follows_window_size_and_radius(running, monkeypatch):
+    echoline, _ = running
+    calls = []
+    monkeypatch.setattr("echoline.app.set_blur",
+                        lambda hwnd, enabled, size, radius: calls.append((enabled, size, radius)))
+
+    echoline.settings_store.setValue("blur_behind", True)
+    echoline.settings_store.setValue("corner_radius", 6)
+    height = echoline.window.height()
+    echoline.settings_store.setValue("line_count", 3)
+    wait_until(lambda: echoline.window.height() > height, timeout=1)
+    echoline.settings_store.setValue("blur_behind", False)
+
+    assert calls[0][0] is True
+    assert any(radius == 6 for _, _, radius in calls)
+    assert len({size for enabled, size, _ in calls if enabled}) >= 2      # re-clipped after resizing
+    assert calls[-1][0] is False

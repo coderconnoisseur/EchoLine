@@ -1,8 +1,7 @@
 import ctypes
-from ctypes import wintypes
 
 ACCENT_DISABLED = 0
-ACCENT_ENABLE_ACRYLICBLURBEHIND = 4
+ACCENT_ENABLE_BLURBEHIND = 3
 WCA_ACCENT_POLICY = 19
 
 
@@ -16,14 +15,27 @@ class WindowCompositionAttributeData(ctypes.Structure):
                 ("SizeOfData", ctypes.c_size_t)]
 
 
-def set_acrylic(hwnd, enabled, user32=None):
-    """Blur whatever is behind the overlay (Windows 10 1803+). Best effort: no-op if unsupported."""
+def set_blur(hwnd, enabled, size, radius, user32=None, gdi32=None):
+    """Blur whatever is behind the overlay. Best effort: no-op where unsupported.
+
+    Uses plain blur-behind rather than acrylic, which makes dragging laggy on
+    Windows 10, and clips the window to a rounded region so the blur does not
+    show square corners. `size` and `radius` are in physical pixels.
+    """
     if user32 is None:
-        user32 = ctypes.windll.user32
+        user32, gdi32 = ctypes.windll.user32, ctypes.windll.gdi32
     set_attribute = getattr(user32, "SetWindowCompositionAttribute", None)
-    if set_attribute is None:
+    set_region = getattr(user32, "SetWindowRgn", None)
+    round_region = getattr(gdi32, "CreateRoundRectRgn", None)
+    if set_attribute is None or set_region is None or round_region is None:
         return False
-    accent = AccentPolicy(ACCENT_ENABLE_ACRYLICBLURBEHIND if enabled else ACCENT_DISABLED, 0,
-                          0x01000000, 0)   # near-transparent tint; the panel draws the color
+    accent = AccentPolicy(ACCENT_ENABLE_BLURBEHIND if enabled else ACCENT_DISABLED, 0, 0, 0)
     data = WindowCompositionAttributeData(WCA_ACCENT_POLICY, ctypes.pointer(accent), ctypes.sizeof(accent))
-    return bool(set_attribute(wintypes.HWND(hwnd).value or hwnd, ctypes.byref(data)))
+    ok = bool(set_attribute(hwnd, ctypes.byref(data)))
+    if enabled:
+        width, height = size
+        # The window owns the region after SetWindowRgn, so it is not deleted here.
+        set_region(hwnd, round_region(0, 0, width + 1, height + 1, 2 * radius, 2 * radius), True)
+    else:
+        set_region(hwnd, None, True)
+    return ok
