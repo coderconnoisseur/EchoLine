@@ -16,6 +16,7 @@ from .pipeline.worker import EngineWorker
 from .ui.fonts import caption_fonts
 from .ui.icon import app_icon
 from .ui.tray import TrayIcon
+from .ui.onboarding import Setup
 from .ui.overlay import QML_DIR, OverlayStatus, load_overlay
 from .ui.blur import set_blur
 from .ui.placement import clamp_to_screen, snap_position
@@ -92,7 +93,8 @@ class Controller(QObject):
 
 
 class EchoLineApp:
-    def __init__(self, source_factory, engine_factory, settings_store, show_latency=False, settings_reset=False):
+    def __init__(self, source_factory, engine_factory, settings_store, show_latency=False, settings_reset=False,
+                 model_ops=None):
         self.source_factory = source_factory
         self.source = source_factory(settings_store.settings.audio_source)
         self.paused = False
@@ -104,12 +106,14 @@ class EchoLineApp:
         self.status.set_show_latency(show_latency)
         self.latency = LatencyTracker()
         self.worker = None
+        self._engine = None
         self._source_state = "listening"
         self._pending_capture = None
         self._closed = False
         self._settings_reset = settings_reset
         self._notice_active = False
         self.settings_window = None
+        self.onboarding_window = None
 
         self.bridge = Bridge()
         self.bridge.events.connect(self._show_events, Qt.QueuedConnection)
@@ -121,6 +125,8 @@ class EchoLineApp:
         self.controller = Controller(self)
         self.qml = QQmlApplicationEngine()
         self.window = load_overlay(self.qml, self.captions, self.status, settings_store, self.controller)
+        self.setup = Setup(self, **(model_ops or {}))
+        self.qml.rootContext().setContextProperty("setup", self.setup)
         self.window.frameSwapped.connect(self._on_frame_shown, Qt.DirectConnection)
 
         self._save_position = QTimer(singleShot=True, interval=500)
@@ -274,12 +280,42 @@ class EchoLineApp:
         self.bridge.engine_ready.emit(engine)
 
     def _on_engine_ready(self, engine):
+        if self._closed:
+            self._close_engine(engine)       # finished loading after quit
+            return
+        self._stop_engine()                  # a reload overtook an earlier load
+        self._engine = engine
         self.worker = EngineWorker(
             engine,
             on_events=lambda events, captured_at: self.bridge.events.emit(events, captured_at),
             on_lagging=lambda lagging: self.bridge.status.emit("lagging" if lagging else "caught-up"))
         self.worker.start()
-        self._start_source()
+        if self.paused:
+            self.status.set_state("paused")
+        else:
+            self._start_source()
+
+    @staticmethod
+    def _close_engine(engine):
+        close = getattr(engine, "close", None)
+        if close is not None:
+            close()
+
+    def _stop_engine(self):
+        if self.worker is None:
+            return
+        self.source.stop()
+        self.worker.stop()
+        self.worker = None
+        self._close_engine(self._engine)
+        self._engine = None
+
+    def reload_engine(self):
+        """Load the engine again, e.g. after the model setting changed."""
+        self._stop_engine()
+        if not self.paused:
+            self.status.set_state("loading")
+        threading.Thread(target=self._load_engine, name="engine-load", daemon=True).start()
 
     def _start_source(self):
         self.source.start(self.worker.push, self.bridge.status.emit)
@@ -325,16 +361,45 @@ class EchoLineApp:
         if not self._closed:
             self.status.set_state(self._source_state if self.worker else "loading")
 
+    def _load_window(self, file_name):
+        before = len(self.qml.rootObjects())
+        self.qml.load(QUrl.fromLocalFile(str(QML_DIR / file_name)))
+        root = self.qml.rootObjects()[before]
+        return shiboken6.wrapInstance(shiboken6.getCppPointer(root)[0], QQuickWindow)
+
+    @staticmethod
+    def _present(window):
+        window.show()
+        window.raise_()
+        window.requestActivate()
+        return window
+
     def open_settings(self):
         if self.settings_window is None:
-            before = len(self.qml.rootObjects())
-            self.qml.load(QUrl.fromLocalFile(str(QML_DIR / "Settings.qml")))
-            root = self.qml.rootObjects()[before]
-            self.settings_window = shiboken6.wrapInstance(shiboken6.getCppPointer(root)[0], QQuickWindow)
-        self.settings_window.show()
-        self.settings_window.raise_()
-        self.settings_window.requestActivate()
-        return self.settings_window
+            self.settings_window = self._load_window("Settings.qml")
+        return self._present(self.settings_window)
+
+    def open_onboarding(self):
+        if self.onboarding_window is None:
+            self.onboarding_window = self._load_window("Onboarding.qml")
+        return self._present(self.onboarding_window)
+
+    def close_onboarding(self):
+        if self.onboarding_window is not None:
+            self.onboarding_window.close()
+
+    def run_setup(self, repair_model=None):
+        """First run (or a missing model): hide captions and show the setup window."""
+        self.set_visible(False)
+        self.setup.begin(repair_model)
+        return self.open_onboarding()
+
+    def bring_to_front(self):
+        """Another launch asked for us: raise setup if it is running, else show captions."""
+        if self.onboarding_window is not None and self.onboarding_window.isVisible():
+            self._present(self.onboarding_window)
+        else:
+            self.set_visible(True)
 
     def _show_events(self, events, captured_at):
         self.captions.apply(events)
@@ -365,15 +430,16 @@ class EchoLineApp:
         self.settings_store.setValue("position", [self.window.x(), self.window.y()])
         self.settings_store.save_now()
         self.source.stop()
-        if self.worker is not None:
-            self.worker.stop()
-            self.worker = None
+        self._stop_engine()
         # Stop rendering before this object goes away: frameSwapped fires on the
         # render thread and would call into a freed EchoLineApp.
         self.window.frameSwapped.disconnect(self._on_frame_shown)
         self.window.close()
         if self.settings_window is not None:
             self.settings_window.close()
+        if self.onboarding_window is not None:
+            self.setup._finished = True      # closing it now must not ask the app to quit
+            self.onboarding_window.close()
         # Delete the QML engine now, not later: once the caller returns, Python frees
         # the store and models in arbitrary order and live bindings would read null.
         shiboken6.delete(self.qml)
