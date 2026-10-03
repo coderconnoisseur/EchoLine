@@ -90,3 +90,11 @@ def test_choice_boxes_show_the_current_values(settings_window):
     assert window.findChild(QObject, "weightBox").property("currentText") == "Medium"
     assert window.findChild(QObject, "effectBox").property("currentText") == "Outline"
     assert window.findChild(QObject, "modeBox").property("currentText") == "Rolling lines"
+
+
+def test_always_on_top_is_not_offered_yet(settings_window):
+    _, window, _, _ = settings_window
+
+    labels = [o.property("text") for o in window.findChildren(QObject) if o.property("text")]
+
+    assert "Always on top" not in labels

@@ -168,10 +168,6 @@ ApplicationWindow {
                 Button { text: "Center"; onClicked: controller.snap("center") }
                 Button { text: "Bottom"; onClicked: controller.snap("bottom") }
             }
-            Row2 {
-                label: "Always on top"
-                Switch { checked: win.s.always_on_top; onToggled: settingsStore.setValue("always_on_top", checked) }
-            }
             Item { Layout.fillHeight: true }
         }
 

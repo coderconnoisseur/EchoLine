@@ -243,3 +243,16 @@ def test_newest_line_is_inside_the_window_when_height_is_capped(overlay):
     assert window.height() <= window.screen().geometry().height() * 0.4 + 1
     assert content + 24 <= window.height() + 1, (content, window.height())   # nothing spills out
     assert bottom <= window.height() + 1, (bottom, window.height())
+
+
+def test_overlay_stays_on_top_until_the_tray_exists(overlay):
+    # The overlay has no taskbar button; if it could drop behind a full-screen
+    # video before M3 adds the tray icon, users could not get it back.
+    from PySide6.QtCore import Qt
+
+    window, _, _, _ = overlay
+
+    window.store.setValue("always_on_top", False)
+    settle()
+
+    assert window.flags() & Qt.WindowStaysOnTopHint

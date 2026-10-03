@@ -6,7 +6,9 @@ Window {
     id: overlay
     objectName: "overlay"
     readonly property var s: settingsStore.values
-    flags: Qt.FramelessWindowHint | Qt.Tool | (s.always_on_top ? Qt.WindowStaysOnTopHint : 0)
+    // Always on top until M3 adds a tray icon: a Tool window has no taskbar button,
+    // so once covered by a full-screen video it could not be brought back.
+    flags: Qt.FramelessWindowHint | Qt.Tool | Qt.WindowStaysOnTopHint
     color: "transparent"
     visible: true
     width: Screen.width * s.width_percent / 100
