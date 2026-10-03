@@ -37,6 +37,10 @@ class Controller(QObject):
         self._app.snap(where)
 
     @Slot()
+    def dragStarted(self):
+        self._app.release_snap()
+
+    @Slot()
     def openSettings(self):
         self._app.open_settings()
 
@@ -81,7 +85,10 @@ class EchoLineApp:
         self._save_position = QTimer(singleShot=True, interval=500)
         self._save_position.timeout.connect(
             lambda: self.settings_store.setValue("position", [self.window.x(), self.window.y()]))
+        self._anchor = None          # "top" | "center" | "bottom" after a snap, until dragged
         self._place_window()
+        self.window.widthChanged.connect(self._keep_anchor)
+        self.window.heightChanged.connect(self._keep_anchor)
         self.window.xChanged.connect(self._save_position.start)
         self.window.yChanged.connect(self._save_position.start)
 
@@ -100,14 +107,27 @@ class EchoLineApp:
         return [(g.x(), g.y(), g.width(), g.height()) for g in (s.availableGeometry() for s in screens)]
 
     def _place_window(self):
+        if self.settings_store.settings.position is None:
+            self.snap("bottom")          # first run: sit at the bottom and stay there as it grows
+            return
         size = (self.window.width(), self.window.height())
         x, y = clamp_to_screen(self.settings_store.settings.position, size, self._screen_rects())
         self.window.setPosition(x, y)
 
     def snap(self, where):
+        self._anchor = where
+        g = self.window.screen().availableGeometry()
         size = (self.window.width(), self.window.height())
-        x, y = snap_position(self._screen_rects()[0], size, where)
+        x, y = snap_position((g.x(), g.y(), g.width(), g.height()), size, where)
         self.window.setPosition(x, y)
+
+    def _keep_anchor(self):
+        # A snapped overlay stays centered / on its edge as fonts, lines or width change.
+        if self._anchor:
+            self.snap(self._anchor)
+
+    def release_snap(self):
+        self._anchor = None
 
     def start(self):
         self.status.set_state("loading")
@@ -178,6 +198,8 @@ class EchoLineApp:
         if self._closed:
             return
         self._closed = True
+        self._save_position.stop()
+        self.settings_store.setValue("position", [self.window.x(), self.window.y()])
         self.settings_store.save_now()
         self.source.stop()
         if self.worker is not None:

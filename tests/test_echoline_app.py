@@ -193,3 +193,62 @@ def test_reset_settings_are_announced(tmp_path):
         assert echoline.status.property("state") == "settings-reset"     # not hidden by "listening"
     finally:
         echoline.shutdown()
+
+
+def test_snap_stays_on_the_overlays_screen(running):
+    # Snapping used to always jump to the primary monitor.
+    echoline, _ = running
+    echoline.window.setPosition(1366 + 200, 300)       # second monitor
+    wait_until(lambda: echoline.window.x() > 1366)
+
+    echoline.controller.snap("top")
+    wait_until(lambda: False, timeout=0.2)
+
+    assert echoline.window.x() > 1366
+
+
+def test_snapped_overlay_stays_anchored_when_it_grows(running):
+    # A bottom-snapped overlay grew downward into the taskbar when lines were added.
+    echoline, _ = running
+    echoline.controller.snap("bottom")
+    wait_until(lambda: False, timeout=0.2)
+    height, bottom = echoline.window.height(), echoline.window.y() + echoline.window.height()
+
+    echoline.settings_store.setValue("line_count", 3)
+    assert wait_until(lambda: echoline.window.height() > height, timeout=1)
+    wait_until(lambda: False, timeout=0.2)
+
+    assert echoline.window.y() + echoline.window.height() == bottom
+
+
+def test_dragging_releases_the_snap(running):
+    echoline, _ = running
+    echoline.controller.snap("bottom")
+    wait_until(lambda: False, timeout=0.2)
+
+    echoline.controller.dragStarted()
+    y = echoline.window.y()
+    echoline.settings_store.setValue("line_count", 3)
+    wait_until(lambda: False, timeout=0.3)
+
+    assert echoline.window.y() == y
+
+
+def test_position_moved_just_before_quit_is_saved(running):
+    echoline, _ = running
+    echoline.window.setPosition(123, 145)
+
+    echoline.shutdown()
+
+    assert echoline.settings_store.settings.position == [123, 145]
+
+
+def test_first_run_overlay_is_anchored_to_the_bottom(running):
+    echoline, _ = running                     # fresh settings: no saved position
+    height, bottom = echoline.window.height(), echoline.window.y() + echoline.window.height()
+
+    echoline.settings_store.setValue("line_count", 3)
+    assert wait_until(lambda: echoline.window.height() > height, timeout=1)
+    wait_until(lambda: False, timeout=0.2)
+
+    assert echoline.window.y() + echoline.window.height() == bottom

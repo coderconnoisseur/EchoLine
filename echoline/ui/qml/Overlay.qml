@@ -41,7 +41,14 @@ Window {
         radius: overlay.s.corner_radius
         color: Qt.alpha(overlay.s.background_color, overlay.s.background_opacity)
 
-        DragHandler { target: null; onActiveChanged: if (active) overlay.startSystemMove() }
+        DragHandler {
+            target: null
+            onActiveChanged: if (active) {
+                if (controller)
+                    controller.dragStarted()
+                overlay.startSystemMove()
+            }
+        }
 
         TapHandler {
             acceptedButtons: Qt.RightButton
