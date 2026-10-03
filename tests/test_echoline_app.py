@@ -2,6 +2,7 @@ import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+import threading
 import time
 
 import numpy as np
@@ -365,7 +366,7 @@ def test_click_through_makes_the_overlay_ignore_the_mouse(running):
     echoline.set_click_through(True)
     assert echoline.window.flags() & Qt.WindowTransparentForInput
     assert echoline.settings_store.settings.click_through
-    assert "Ctrl+Alt+T" in echoline.status.property("notice")
+    assert "Ctrl+Alt+Shift+T" in echoline.status.property("notice")
 
     echoline.set_click_through(False)
     assert not echoline.window.flags() & Qt.WindowTransparentForInput
@@ -433,3 +434,91 @@ def test_click_through_saved_on_is_announced_at_startup(tmp_path):
         assert "Click-through on" in echoline.status.property("notice")
     finally:
         echoline.shutdown()
+
+
+class ClosingEngine(EchoEngine):
+    closed = 0
+
+    def close(self):
+        ClosingEngine.closed += 1
+
+
+def test_reload_engine_swaps_in_a_fresh_engine(tmp_path):
+    engines = []
+
+    def factory():
+        engines.append(ClosingEngine())
+        return engines[-1]
+
+    source = FakeSource()
+    echoline = EchoLineApp(lambda kind: source, factory, SettingsStore(Settings(), tmp_path / "s.json"))
+    echoline.start()
+    assert wait_until(lambda: echoline.worker is not None)
+    ClosingEngine.closed = 0
+    echoline.reload_engine()
+    assert wait_until(lambda: len(engines) == 2 and echoline.worker is not None)
+    assert echoline.worker._engine is engines[1] and ClosingEngine.closed == 1
+    echoline.shutdown()
+
+
+def test_overlapping_reloads_keep_one_worker(tmp_path):
+    engines = []
+
+    def factory():
+        time.sleep(0.05)
+        engines.append(ClosingEngine())
+        return engines[-1]
+
+    echoline = EchoLineApp(lambda kind: FakeSource(), factory, SettingsStore(Settings(), tmp_path / "s.json"))
+    ClosingEngine.closed = 0
+    echoline.start()
+    echoline.reload_engine()
+    assert wait_until(lambda: len(engines) == 2)
+    wait_until(lambda: False, timeout=0.2)
+    assert echoline.worker._engine in engines and ClosingEngine.closed == 1   # one live, one closed
+    echoline.shutdown()
+
+
+def test_reload_while_paused_stays_paused(running):
+    echoline, source = running
+    echoline.set_paused(True)
+    source.on_audio = None
+    echoline.reload_engine()
+    assert wait_until(lambda: echoline.worker is not None)
+    wait_until(lambda: False, timeout=0.1)
+    assert echoline.paused and echoline.status.property("state") == "paused"
+    assert source.on_audio is None               # the source was not restarted
+
+
+def test_bring_to_front_prefers_onboarding(tmp_path):
+    echoline = EchoLineApp(lambda kind: FakeSource(), EchoEngine, SettingsStore(Settings(), tmp_path / "s.json"),
+                           model_ops={"download": lambda name, cb: threading.Event().wait(),
+                                      "check_hardware": lambda: "tiny", "is_downloaded": lambda name: False})
+    echoline.run_setup()
+    assert not echoline.visible and echoline.onboarding_window.isVisible()
+    echoline.bring_to_front()
+    assert not echoline.visible                  # nothing to caption yet; raise the setup window
+    echoline.close_onboarding()
+    echoline.bring_to_front()
+    assert echoline.visible
+    echoline.shutdown()
+
+
+def test_a_late_older_load_does_not_replace_a_newer_engine(tmp_path):
+    # Picking Small then Tiny: Small loads slower, finishes last, and must not win.
+    delays, engines = [0.3, 0.0], []
+
+    def factory():
+        time.sleep(delays.pop(0))
+        engines.append(ClosingEngine())
+        return engines[-1]
+
+    echoline = EchoLineApp(lambda kind: FakeSource(), factory, SettingsStore(Settings(), tmp_path / "s.json"))
+    ClosingEngine.closed = 0
+    echoline.start()
+    echoline.reload_engine()
+    assert wait_until(lambda: len(engines) == 2)
+    wait_until(lambda: False, timeout=0.2)
+    newer = engines[0]                           # the 0 s load finished first
+    assert echoline.worker._engine is newer and ClosingEngine.closed == 1
+    echoline.shutdown()

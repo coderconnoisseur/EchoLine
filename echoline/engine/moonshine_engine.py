@@ -27,10 +27,10 @@ class MoonshineEngine:
     STREAMING_OPTIONS = {"return_audio_data": "false", "transcription_interval": "0.1"}
 
     @classmethod
-    def load(cls, model_arch, update_interval=0.1, options=None):
+    def load(cls, model_arch, update_interval=0.1, options=None, cache_root=None):
         from moonshine_voice import Transcriber, get_model_for_language
 
-        path, arch = get_model_for_language("en", model_arch)
+        path, arch = get_model_for_language("en", model_arch, cache_root=cache_root)
         transcriber = Transcriber(model_path=path, model_arch=arch, update_interval=update_interval,
                                   options={**cls.STREAMING_OPTIONS, **(options or {})})
         engine = cls(transcriber.create_stream(update_interval=update_interval))

@@ -160,9 +160,12 @@ def test_load_uses_streaming_settings_that_keep_cost_flat(monkeypatch):
             return FakeStream([])
 
     monkeypatch.setattr(moonshine_voice, "Transcriber", FakeTranscriber, raising=False)
-    monkeypatch.setattr(moonshine_voice, "get_model_for_language", lambda language, arch: ("path", arch))
+    monkeypatch.setattr(moonshine_voice, "get_model_for_language",
+                        lambda language, arch, cache_root=None: created.update(root=cache_root) or ("path", arch))
 
-    MoonshineEngine.load(moonshine_voice.ModelArch.TINY_STREAMING)
+    MoonshineEngine.load(moonshine_voice.ModelArch.TINY_STREAMING, cache_root="models")
+
+    assert created["root"] == "models"           # never fetch into moonshine's own cache
 
     assert created["options"]["return_audio_data"] == "false"
     # Capping lines shorter than Moonshine's default split sentences and doubled WER.

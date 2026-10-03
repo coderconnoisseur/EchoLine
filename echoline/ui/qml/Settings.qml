@@ -211,6 +211,28 @@ ApplicationWindow {
         ColumnLayout {
             spacing: 14
             Row2 {
+                label: "Speech model"
+                ComboBox {
+                    objectName: "modelBox"
+                    Layout.fillWidth: true
+                    textRole: "text"; valueRole: "value"
+                    model: [{ text: "Tiny — faster", value: "tiny" }, { text: "Small — more accurate", value: "small" }]
+                    currentIndex: model.findIndex(item => item.value === win.s.model)
+                    enabled: setup.phase !== "downloading" && setup.phase !== "checking"
+                    onActivated: (index) => {
+                        setup.chooseModel(model[index].value)
+                        // Clicking broke the binding; follow the setting again so a failed download shows the old model.
+                        currentIndex = Qt.binding(() => model.findIndex(item => item.value === win.s.model))
+                    }
+                }
+            }
+            ProgressBar {
+                objectName: "modelProgress"
+                Layout.fillWidth: true
+                visible: setup.phase === "downloading"
+                value: setup.progress
+            }
+            Row2 {
                 label: "Audio source"
                 ComboBox {
                     objectName: "sourceBox"

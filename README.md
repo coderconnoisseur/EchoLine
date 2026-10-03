@@ -16,7 +16,7 @@ offline and nothing you hear leaves your computer.
 - Always-on-top, translucent overlay with smoothly rolling caption lines, or film-style subtitle blocks
 - Four caption themes (Classic CC, Netflix, Minimal, High contrast) and full control over font, size, colors, outline, background, width and line count
 - Remembers where you put it; snap to the top, center or bottom of the screen
-- Tray icon, hover bar and global hotkeys: **Ctrl+Alt+C** show/hide, **Ctrl+Alt+P** pause, **Ctrl+Alt+T** click-through
+- Tray icon, hover bar and global hotkeys: **Ctrl+Alt+Shift+C** show/hide, **Ctrl+Alt+Shift+P** pause, **Ctrl+Alt+Shift+T** click-through
 - Microphone captioning for in-person conversations and lectures
 - Click-through (clicks reach the window below), auto-hide after silence, start with Windows
 - Drag the overlay anywhere, or drag its edges to resize
@@ -40,12 +40,14 @@ offline and nothing you hear leaves your computer.
    ```bash
    python -m echoline
    ```
-   The speech model downloads automatically on first run (tens of MB for the
-   default model). Play anything with speech and captions appear at the
-   bottom of your screen.
+   The first launch opens a short setup: it downloads the speech model (45 MB,
+   or 190 MB if your PC is fast enough for the more accurate Small model),
+   runs a sound test and lets you pick a look. Models are stored in
+   `%LOCALAPPDATA%\EchoLine\models`. Launching EchoLine again while it runs
+   brings the running copy forward.
 
 ### Options
-- `--model tiny|small|medium`: larger models are more accurate but need a faster CPU (default: `tiny`)
+- `--model tiny|small|medium`: use this model for one run instead of the one chosen at setup (switch for good under Settings → Behavior → Speech model)
 - `--show-latency`: show how long captions take to appear (p50 / p95)
 
 ## Controls
@@ -55,11 +57,11 @@ offline and nothing you hear leaves your computer.
 - **Hover bar:** move the pointer over the captions for pause, source,
   settings and hide buttons.
 - **Hotkeys** (work while other apps have focus; change them in Settings → Hotkeys):
-  - `Ctrl+Alt+C` show or hide captions
-  - `Ctrl+Alt+P` pause or resume
-  - `Ctrl+Alt+T` click-through on or off
+  - `Ctrl+Alt+Shift+C` show or hide captions
+  - `Ctrl+Alt+Shift+P` pause or resume
+  - `Ctrl+Alt+Shift+T` click-through on or off
 - **Click-through:** the captions ignore the mouse so you can click the video
-  under them. Turn it off with `Ctrl+Alt+T` or from the tray icon.
+  under them. Turn it off with `Ctrl+Alt+Shift+T` or from the tray icon.
 
 Hiding the captions keeps EchoLine running in the tray; quit from the tray
 menu or the captions' right-click menu.
@@ -101,4 +103,4 @@ The transcription metrics package is documented in [metrics/README.md](metrics/R
 - If the overlay shows "No audio device", connect or enable an output device; EchoLine picks it up automatically.
 
 **Captions lag behind ("Catching up…")**
-- Your CPU cannot keep up with the selected model. Use `--model tiny`.
+- Your CPU cannot keep up with the selected model. Choose Tiny under Settings → Behavior → Speech model.

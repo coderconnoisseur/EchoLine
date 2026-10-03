@@ -8,12 +8,20 @@ preload_native_library()
 
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
-DEFAULT_MODEL = "tiny"   # from docs/benchmarks/2026-10-engine-bench.md
+
+def startup_mode(settings, model, is_downloaded):
+    """run: captions now; setup: full onboarding; repair: re-fetch a missing model."""
+    if not settings.onboarded:
+        return "setup"
+    if model and is_downloaded(model):
+        return "run"
+    return "repair" if model else "setup"
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="echoline", description="Live captions for anything playing on your PC.")
-    parser.add_argument("--model", choices=["tiny", "small", "medium"], default=DEFAULT_MODEL)
+    parser.add_argument("--model", choices=["tiny", "small", "medium"], default=None,
+                        help="use this model for this run (default: the one chosen at setup)")
     parser.add_argument("--show-latency", action="store_true", help="show p50/p95 caption latency")
     args = parser.parse_args(argv)
 
@@ -21,34 +29,48 @@ def main(argv=None):
     qt_app.setQuitOnLastWindowClosed(False)   # hiding captions or closing settings must not quit
     qt_app.setApplicationName("EchoLine")
 
+    from .instance import InstanceServer, notify_running, server_name
+    if notify_running(server_name()):
+        return 0                               # the running copy shows itself
+    instance = InstanceServer(server_name())
+
     from .ui.style import use_fluent_style
     use_fluent_style()
 
-    from moonshine_voice import ModelArch
-
+    from . import models
     from .app import EchoLineApp
     from .audio.loopback import LoopbackSource
+    from .audio.microphone import MicrophoneSource
     from .engine.moonshine_engine import MoonshineEngine
-
     from .settings.model import default_settings_path, load_settings
     from .settings.store import SettingsStore
+
     settings, was_reset = load_settings(default_settings_path())
     store = SettingsStore(settings, default_settings_path())
 
-    arch = {"tiny": ModelArch.TINY_STREAMING, "small": ModelArch.SMALL_STREAMING,
-            "medium": ModelArch.MEDIUM_STREAMING}[args.model]
-    from .audio.microphone import MicrophoneSource
+    def chosen_model():
+        # ponytail: --model also wins after a switch in Settings; it is a developer flag.
+        return args.model or store.settings.model
 
     def make_source(kind):
         return MicrophoneSource() if kind == "microphone" else LoopbackSource()
 
-    echoline = EchoLineApp(make_source, lambda: MoonshineEngine.load(arch), store,
+    def make_engine():
+        return MoonshineEngine.load(models.arch(chosen_model()), cache_root=models.models_dir())
+
+    echoline = EchoLineApp(make_source, make_engine, store,
                            show_latency=args.show_latency, settings_reset=was_reset)
-    echoline.start()
+    instance.shown.connect(echoline.bring_to_front)
+    mode = startup_mode(store.settings, chosen_model(), models.is_downloaded)
+    if mode == "run":
+        echoline.start()
+    else:
+        echoline.run_setup(chosen_model() if mode == "repair" else None)
     try:
         return qt_app.exec()
     finally:
         echoline.shutdown()
+        instance.close()
 
 
 if __name__ == "__main__":
