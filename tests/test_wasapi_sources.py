@@ -80,3 +80,16 @@ def test_microphone_does_not_fill_silence():
     source.fill_silence(now=source.last_audio_at + 10)
 
     assert received == []
+
+
+def test_restarting_reports_a_still_missing_microphone_again():
+    # After a pause/resume the app shows "listening"; the source must say again
+    # that there is no microphone instead of staying silent.
+    source = MicrophoneSource(pyaudio_module=FakePyAudio(None), default_device_id=lambda: None, poll_interval=None)
+    statuses = []
+    source.start(lambda samples, at: None, statuses.append)
+    source.stop()
+
+    source.start(lambda samples, at: None, statuses.append)
+
+    assert statuses == ["no-microphone", "no-microphone"]

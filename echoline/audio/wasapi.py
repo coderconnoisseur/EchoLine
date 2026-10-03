@@ -66,6 +66,7 @@ class WasapiSource:
 
     def start(self, on_audio: AudioCallback, on_status: StatusCallback) -> None:
         self._on_audio, self._on_status = on_audio, on_status
+        self._status = None          # report the device state afresh to the new listener
         self._stopping.clear()
         self.check_device()
         if self._poll_interval:
