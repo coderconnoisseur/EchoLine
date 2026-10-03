@@ -1,4 +1,5 @@
 import QtQuick
+import "captions.js" as Captions
 
 // Newest utterance as one block; the previous phrase fades out as the next fades in.
 Item {
@@ -11,7 +12,11 @@ Item {
     implicitHeight: lineHeight * s.line_count
     clip: true
 
+    readonly property string latestMarkup: Captions.markup(captions.latestText, captions.latestSettled,
+                                                          s.unsettled_words, s.text_color)
+
     component SubtitleText: Text {
+        textFormat: Text.StyledText
         anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
         wrapMode: Text.Wrap
         horizontalAlignment: Text.AlignHCenter
@@ -33,7 +38,7 @@ Item {
     SubtitleText {
         id: subtitleText
         objectName: "subtitleText"
-        text: captions.latestText
+        text: root.latestMarkup
     }
 
     ParallelAnimation {
@@ -50,7 +55,7 @@ Item {
                 crossFade.restart()
             }
             root.shownId = captions.latestId
-            root.shownText = captions.latestText
+            root.shownText = root.latestMarkup
         }
     }
 }

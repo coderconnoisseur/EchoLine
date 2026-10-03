@@ -192,3 +192,15 @@ def test_model_box_shows_the_old_model_after_a_failed_download(settings_window):
     assert wait_until(lambda: echoline.setup.property("phase") == "idle")
     assert store.settings.model == "tiny"
     assert box.property("currentText") == "Tiny — faster"
+
+
+def test_unsettled_words_box_switches_between_dim_and_hide(settings_window):
+    _, window, store, warnings = settings_window
+    box = find(window, "unsettledBox")
+
+    assert box.property("currentText") == "Dimmed"
+    box.activated.emit(1)
+
+    assert store.settings.unsettled_words == "hide"
+    assert box.property("currentText") == "Hidden until settled"
+    assert warnings == []

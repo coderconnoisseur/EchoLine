@@ -2,6 +2,7 @@ import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+import re
 import time
 
 import pytest
@@ -138,8 +139,13 @@ def test_overlay_height_is_capped_on_small_screens(overlay):
     assert window.height() <= window.screen().geometry().height() * 0.4 + 1
 
 
+def plain(markup):
+    """Caption text without the dimming markup."""
+    return re.sub(r"<[^>]+>", "", markup).replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
+
+
 def visible_text(item):
-    return item.findChild(QObject, "subtitleText").property("text")
+    return plain(item.findChild(QObject, "subtitleText").property("text"))
 
 
 def test_subtitle_mode_shows_only_the_newest_utterance(overlay):
@@ -341,3 +347,31 @@ def test_auto_hide_off_never_fades(overlay):
     settle(0.9)
 
     assert window.findChild(QObject, "panel").property("opacity") == 1
+
+
+def test_dim_mode_dims_only_the_words_still_changing(overlay):
+    window, captions, _, warnings = overlay
+    captions.apply([Partial(0, "It was the")])
+    captions.apply([Partial(0, "It was the best <of>")])
+    settle()
+
+    text = caption_lines(window)[0].property("text")
+    assert text == 'It was the<font color="#8cffffff"> best &lt;of&gt;</font>'
+    captions.apply([Final(0, "It was the best of times.")])
+    settle()
+    assert caption_lines(window)[0].property("text") == "It was the best of times."
+    assert warnings == []
+
+
+def test_hide_mode_shows_only_settled_words(overlay):
+    window, captions, _, warnings = overlay
+    window.store.setValue("unsettled_words", "hide")
+    captions.apply([Partial(0, "It was the")])
+    captions.apply([Partial(0, "It was the beast")])
+    settle()
+    assert caption_lines(window)[0].property("text") == "It was the"
+
+    window.store.setValue("caption_mode", "subtitle")
+    settle()
+    assert visible_text(window.findChild(QObject, "subtitleView")) == "It was the"
+    assert warnings == []
