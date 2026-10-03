@@ -75,3 +75,23 @@ line length left at the default.
 
 "Delay" is from capture of the newest audio block to the engine emitting text;
 words spoken just after an update also wait for the next update (up to 0.25 s).
+
+## Update cadence (2026-10-03)
+
+Word lag = time from a word ending in the audio (Vosk word timestamps) to that
+word appearing in the captions, measured on ~60 s of speech streamed in real
+time through `EngineWorker` + Moonshine Tiny. Two runs each.
+
+| Python / native interval | Updates per second | Word lag p90 | Lagging events |
+|---|---|---|---|
+| 0.25 s / 0.5 s (native default) | 1.4 | 600–660 ms | 0 |
+| 0.25 s / 0.25 s | 2.5 | 360–580 ms | 0 |
+| 0.15 s / 0.15 s | 3.2 | 330 ms | 0 |
+| **0.1 s / 0.1 s** | **3.3** | **270–290 ms** | **0** |
+
+The median word lag is slightly negative: Moonshine's partial text often shows
+a word before it has finished being spoken.
+
+The native `transcription_interval` was the real limit. At 0.1 s, WER stays
+0.131 and the engine uses 0.77x real time (vs 0.41x), so slower CPUs have less
+headroom; the worker's backlog protection and the M4 hardware check cover that.
