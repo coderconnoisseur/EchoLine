@@ -20,6 +20,9 @@ def main(argv=None):
     qt_app = QGuiApplication(sys.argv[:1])
     qt_app.setApplicationName("EchoLine")
 
+    from .ui.style import use_fluent_style
+    use_fluent_style()
+
     from moonshine_voice import ModelArch
 
     from .app import EchoLineApp
