@@ -40,12 +40,14 @@ offline and nothing you hear leaves your computer.
    ```bash
    python -m echoline
    ```
-   The speech model downloads automatically on first run (tens of MB for the
-   default model). Play anything with speech and captions appear at the
-   bottom of your screen.
+   The first launch opens a short setup: it downloads the speech model (45 MB,
+   or 190 MB if your PC is fast enough for the more accurate Small model),
+   runs a sound test and lets you pick a look. Models are stored in
+   `%LOCALAPPDATA%\EchoLine\models`. Launching EchoLine again while it runs
+   brings the running copy forward.
 
 ### Options
-- `--model tiny|small|medium`: larger models are more accurate but need a faster CPU (default: `tiny`)
+- `--model tiny|small|medium`: use this model for one run instead of the one chosen at setup (switch for good under Settings → Behavior → Speech model)
 - `--show-latency`: show how long captions take to appear (p50 / p95)
 
 ## Controls
@@ -101,4 +103,4 @@ The transcription metrics package is documented in [metrics/README.md](metrics/R
 - If the overlay shows "No audio device", connect or enable an output device; EchoLine picks it up automatically.
 
 **Captions lag behind ("Catching up…")**
-- Your CPU cannot keep up with the selected model. Use `--model tiny`.
+- Your CPU cannot keep up with the selected model. Choose Tiny under Settings → Behavior → Speech model.
