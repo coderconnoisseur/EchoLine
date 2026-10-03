@@ -1,4 +1,5 @@
 import json
+import math
 import os
 import re
 from dataclasses import asdict, dataclass, fields
@@ -37,7 +38,7 @@ COLORS = ("text_color", "outline_color", "background_color")
 
 def _valid(name, value, default):
     if name in RANGES:
-        if isinstance(value, bool) or not isinstance(value, (int, float)):
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
             return default
         low, high = RANGES[name]
         value = min(max(value, low), high)
@@ -48,7 +49,7 @@ def _valid(name, value, default):
         return value.lower() if isinstance(value, str) and COLOR.match(value) else default
     if name == "position":
         ok = isinstance(value, list) and len(value) == 2 and all(
-            isinstance(v, (int, float)) and not isinstance(v, bool) for v in value)
+            isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) for v in value)
         return [int(v) for v in value] if ok else None
     if isinstance(default, bool):
         return value if isinstance(value, bool) else default
@@ -78,7 +79,10 @@ def load_settings(path: Path):
         if not isinstance(data, dict):
             raise ValueError("settings file is not a JSON object")
     except (OSError, ValueError):
-        os.replace(path, path.with_name(path.name + ".bak"))
+        try:
+            os.replace(path, path.with_name(path.name + ".bak"))
+        except OSError:
+            pass        # keep going with defaults even if the backup cannot be made
         return Settings(), True
     return validate(data), False
 

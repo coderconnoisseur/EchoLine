@@ -56,3 +56,26 @@ def test_save_writes_plain_json(tmp_path):
     save_settings(Settings(theme="Netflix"), path)
 
     assert json.loads(path.read_text())["theme"] == "Netflix"
+
+
+def test_non_finite_numbers_fall_back_to_defaults(tmp_path):
+    # Python's json accepts NaN and turns 1e400 into inf; both crashed startup.
+    path = tmp_path / "settings.json"
+    path.write_text('{"font_size": NaN, "background_opacity": NaN, "position": [1e400, 0], "line_count": 3}')
+
+    settings, was_reset = load_settings(path)
+
+    assert (settings.font_size, settings.background_opacity, settings.position) == (26, 0.72, None)
+    assert settings.line_count == 3 and not was_reset
+
+
+def test_unsavable_backup_does_not_stop_startup(tmp_path, monkeypatch):
+    path = tmp_path / "settings.json"
+    path.write_text("{ not json")
+
+    def locked(*args):
+        raise PermissionError("locked by another program")
+
+    monkeypatch.setattr("echoline.settings.model.os.replace", locked)
+
+    assert load_settings(path) == (Settings(), True)
