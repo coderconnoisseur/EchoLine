@@ -129,3 +129,13 @@ def test_tray_click_turns_click_through_off_instead_of_hiding(echoline):
 
     echoline.tray._activated(QSystemTrayIcon.Trigger)          # back to show/hide
     assert not echoline.window.isVisible()
+
+
+def test_tray_click_shows_hidden_captions_even_in_click_through(echoline):
+    from PySide6.QtWidgets import QSystemTrayIcon
+
+    echoline.set_click_through(True)
+    echoline.set_visible(False)
+    echoline.tray._activated(QSystemTrayIcon.Trigger)
+
+    assert echoline.window.isVisible()

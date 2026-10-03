@@ -46,7 +46,7 @@ class TrayIcon:
     def _activated(self, reason):
         if reason != QSystemTrayIcon.Trigger:
             return
-        if self.app.settings_store.settings.click_through:
+        if self.app.settings_store.settings.click_through and self.app.visible:
             self.app.set_click_through(False)    # the quickest way out of click-through
         else:
             self.app.set_visible(not self.app.visible)
