@@ -51,6 +51,12 @@ class EngineWorker:
             self._on_lagging(lagging)
 
     def process_pending(self):
+        # Take and feed under one lock: a batch taken but not yet fed must never
+        # be overtaken by a pause flush, or it lands in the restarted stream.
+        with self._engine_lock:
+            self._process_pending_locked()
+
+    def _process_pending_locked(self):
         batch, dropped = self._take_batch()
         if not batch:
             return
@@ -63,8 +69,7 @@ class EngineWorker:
         # block by block never shrinks, while one big chunk lets the engine catch up.
         samples = np.concatenate([samples for samples, _ in batch])
         try:
-            with self._engine_lock:
-                events = self._engine.feed(samples)
+            events = self._engine.feed(samples)
         except Exception:
             traceback.print_exc()
             return

@@ -178,3 +178,43 @@ def test_flush_never_runs_while_the_worker_is_feeding():
     worker.stop()
 
     assert engine.overlaps == 0
+
+
+def test_pause_flush_never_overtakes_audio_the_worker_already_took():
+    # The worker took a batch but had not fed it when pause flushed; the batch
+    # then landed in the restarted stream and showed up as a partial after pause.
+    calls = []
+
+    class Engine(RecordingEngine):
+        def feed(self, samples):
+            calls.append("feed")
+            return []
+
+        def flush(self):
+            calls.append("flush")
+            return []
+
+    worker = EngineWorker(Engine(), lambda *a: None, lambda l: None)
+    took, go = threading.Event(), threading.Event()
+    real_take = worker._take_batch
+
+    def slow_take():
+        batch = real_take()
+        if batch[0]:
+            took.set()
+            go.wait(2)
+        return batch
+
+    worker._take_batch = slow_take
+    worker.push(block(30), captured_at=1.0)
+    feeder = threading.Thread(target=worker.process_pending)
+    feeder.start()
+    assert took.wait(2)
+    flusher = threading.Thread(target=worker.flush)
+    flusher.start()
+    time.sleep(0.1)
+    go.set()
+    feeder.join(2)
+    flusher.join(2)
+
+    assert calls == ["feed", "flush"]
