@@ -167,4 +167,7 @@ def test_load_uses_streaming_settings_that_keep_cost_flat(monkeypatch):
     assert created["options"]["return_audio_data"] == "false"
     # Capping lines shorter than Moonshine's default split sentences and doubled WER.
     assert "vad_max_segment_duration" not in created["options"]
-    assert created["update_interval"] == created["stream_interval"] == 0.25
+    # Moonshine's native layer also gates re-transcription (0.5 s by default),
+    # which capped updates at ~1.4/s whatever the Python interval was.
+    assert created["options"]["transcription_interval"] == "0.1"
+    assert created["update_interval"] == created["stream_interval"] == 0.1
