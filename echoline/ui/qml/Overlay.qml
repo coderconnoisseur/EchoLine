@@ -10,9 +10,16 @@ Window {
     color: "transparent"
     visible: true
     width: Screen.width * s.width_percent / 100
-    height: Math.min(panel.implicitHeight, Screen.height * 0.4)
+    height: Math.min(panel.implicitHeight, maxHeight)
 
     readonly property real lineHeight: metrics.height * 1.15
+    readonly property real maxHeight: Screen.height * 0.4
+    // Height left for captions once the status pill, latency line and padding are placed,
+    // so a big font on a small screen shrinks the captions instead of spilling out.
+    readonly property real captionRoom: maxHeight - 24
+        - (statusPill.visible ? statusPill.height + content.spacing : 0)
+        - (latencyText.visible ? latencyText.height + content.spacing : 0)
+    readonly property real captionHeight: Math.min(lineHeight * s.line_count, captionRoom)
 
     FontMetrics {
         id: metrics
@@ -46,6 +53,7 @@ Window {
 
         Column {
             id: content
+            objectName: "content"
             anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: 18 }
             spacing: 4
 
@@ -77,7 +85,7 @@ Window {
                 objectName: "captionArea"
                 width: parent.width
                 visible: overlay.s.caption_mode === "rolling"
-                height: visible ? overlay.lineHeight * overlay.s.line_count : 0
+                height: visible ? overlay.captionHeight : 0
                 clip: true
 
                 Column {
@@ -104,13 +112,14 @@ Window {
 
             SubtitleView {
                 width: parent.width
-                height: visible ? implicitHeight : 0
+                height: visible ? overlay.captionHeight : 0
                 visible: overlay.s.caption_mode === "subtitle"
                 s: overlay.s
                 lineHeight: overlay.lineHeight
             }
 
             Text {
+                id: latencyText
                 visible: status.showLatency
                 anchors.horizontalCenter: parent.horizontalCenter
                 color: "#bbbbbb"

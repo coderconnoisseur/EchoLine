@@ -223,3 +223,23 @@ def test_caption_lines_never_overlap_after_restyling(overlay):
         settle(0.6)
         first, second = caption_lines(window)
         assert first.y() + first.height() <= second.y() + 1, (theme, first.y(), first.height(), second.y())
+
+
+def test_newest_line_is_inside_the_window_when_height_is_capped(overlay):
+    # With a big font and 3 lines the window is capped at 40% of the screen;
+    # the caption area must shrink with it, not spill past the window edge.
+    from PySide6.QtCore import QPointF
+
+    window, captions, status, _ = overlay
+    captions.apply([Final(0, "one two three four five six"), Partial(1, "newest words here")])
+    status.set_state("lagging")                       # the pill takes space too
+    window.store.setValue("font_size", 64)
+    window.store.setValue("line_count", 3)
+    settle()
+
+    newest = caption_lines(window)[-1]
+    bottom = newest.mapToScene(QPointF(0, newest.height())).y()
+    content = window.findChild(QObject, "content").property("height")
+    assert window.height() <= window.screen().geometry().height() * 0.4 + 1
+    assert content + 24 <= window.height() + 1, (content, window.height())   # nothing spills out
+    assert bottom <= window.height() + 1, (bottom, window.height())
