@@ -398,3 +398,14 @@ def test_start_with_windows_follows_the_setting(running, monkeypatch):
     echoline.settings_store.setValue("start_with_windows", False)
 
     assert calls == [True, False]
+
+
+def test_click_through_survives_unrelated_setting_changes(running):
+    # The QML flags binding re-ran on every settings change and dropped the flag.
+    echoline, _ = running
+    echoline.set_click_through(True)
+
+    echoline.settings_store.setValue("font_size", 30)
+    wait_until(lambda: False, timeout=0.2)
+
+    assert echoline.window.flags() & Qt.WindowTransparentForInput

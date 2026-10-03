@@ -143,7 +143,6 @@ class EchoLineApp:
         self._autostart_applied = settings_store.settings.start_with_windows
         settings_store.valuesChanged.connect(self._apply_autostart)
         self.window.setIcon(app_icon())
-        self.window.setFlag(Qt.WindowTransparentForInput, settings_store.settings.click_through)
         self.tray = TrayIcon(self)
         settings_store.valuesChanged.connect(self._refresh_tray)
 
@@ -189,8 +188,7 @@ class EchoLineApp:
 
     def set_click_through(self, enabled):
         """Let clicks pass through the captions to the window below."""
-        self.settings_store.setValue("click_through", enabled)
-        self.window.setFlag(Qt.WindowTransparentForInput, enabled)
+        self.settings_store.setValue("click_through", enabled)      # the overlay's flags follow it
         if enabled:
             key = self.settings_store.settings.hotkey_click_through
             how = f"{key} or the tray icon" if key else "the tray icon"

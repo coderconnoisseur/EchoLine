@@ -6,7 +6,10 @@ Window {
     id: overlay
     objectName: "overlay"
     readonly property var s: settingsStore.values
+    // All flags live in this one binding; setting any of them from Python would be
+    // undone the next time a setting changes and this re-evaluates.
     flags: Qt.FramelessWindowHint | Qt.Tool | (s.always_on_top ? Qt.WindowStaysOnTopHint : 0)
+           | (s.click_through ? Qt.WindowTransparentForInput : 0)
     color: "transparent"
     visible: true
     // Width is set imperatively so a drag-resize from the edge does not fight a binding.
