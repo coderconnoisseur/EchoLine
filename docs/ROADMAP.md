@@ -29,6 +29,12 @@ Not prioritized yet; pick from this list after v1.
   (Windows 10 2004+); needs a small native helper.
 - Mixing system audio and microphone (both sides of a call).
 
+### Performance
+- GPU acceleration (DirectML on Windows). Moonshine 0.1.5 only maps `cpu`,
+  `coreml` and `nnapi` execution providers and ships a CPU-only ONNX Runtime;
+  needs upstream support or a fork with a `dml` provider and a DirectML
+  ONNX Runtime build. Would make the Small/Medium models usable live.
+
 ### Platform and distribution
 - Code signing (e.g. Azure Trusted Signing) to remove the SmartScreen warning.
 - Auto-update.
