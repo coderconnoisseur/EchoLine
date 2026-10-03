@@ -97,3 +97,11 @@ def test_control_settings_are_validated():
     assert s.hotkey_pause == "Ctrl+Alt+Shift+P"
     assert s.hotkey_show_hide == ""                      # disabled is allowed
     assert s.hotkey_click_through == "Ctrl+Shift+F9"
+
+
+def test_model_and_onboarding_fields_validate():
+    assert Settings().model == "" and Settings().onboarded is False
+    s = validate({"model": "small", "onboarded": True})
+    assert (s.model, s.onboarded) == ("small", True)
+    s = validate({"model": "huge", "onboarded": "yes"})
+    assert (s.model, s.onboarded) == ("", False)
