@@ -2,13 +2,15 @@ import threading
 import time
 import traceback
 
-from PySide6.QtCore import QObject, Qt, Signal
+from PySide6.QtCore import QObject, Qt, QTimer, Signal, Slot
+from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
 
 from .captions.model import CaptionModel
 from .pipeline.latency import LatencyTracker
 from .pipeline.worker import EngineWorker
 from .ui.overlay import OverlayStatus, load_overlay
+from .ui.placement import clamp_to_screen, snap_position
 
 
 class Bridge(QObject):
@@ -17,6 +19,18 @@ class Bridge(QObject):
     status = Signal(str)
     engine_ready = Signal(object)
     frame_shown = Signal(float)          # monotonic time a frame reached the screen
+
+
+class Controller(QObject):
+    """Actions the QML UI can trigger."""
+
+    def __init__(self, app):
+        super().__init__()
+        self._app = app
+
+    @Slot(str)
+    def snap(self, where):
+        self._app.snap(where)
 
 
 class EchoLineApp:
@@ -38,9 +52,33 @@ class EchoLineApp:
         self.bridge.engine_ready.connect(self._on_engine_ready, Qt.QueuedConnection)
         self.bridge.frame_shown.connect(self._record_latency, Qt.QueuedConnection)
 
+        self.settings_store = settings_store
+        self.controller = Controller(self)
         self.qml = QQmlApplicationEngine()
-        self.window = load_overlay(self.qml, self.captions, self.status, settings_store)
+        self.window = load_overlay(self.qml, self.captions, self.status, settings_store, self.controller)
         self.window.frameSwapped.connect(self._on_frame_shown, Qt.DirectConnection)
+
+        self._save_position = QTimer(singleShot=True, interval=500)
+        self._save_position.timeout.connect(
+            lambda: self.settings_store.setValue("position", [self.window.x(), self.window.y()]))
+        self._place_window()
+        self.window.xChanged.connect(self._save_position.start)
+        self.window.yChanged.connect(self._save_position.start)
+
+    def _screen_rects(self):
+        primary = QGuiApplication.primaryScreen()
+        screens = [primary] + [s for s in QGuiApplication.screens() if s is not primary]
+        return [(g.x(), g.y(), g.width(), g.height()) for g in (s.availableGeometry() for s in screens)]
+
+    def _place_window(self):
+        size = (self.window.width(), self.window.height())
+        x, y = clamp_to_screen(self.settings_store.settings.position, size, self._screen_rects())
+        self.window.setPosition(x, y)
+
+    def snap(self, where):
+        size = (self.window.width(), self.window.height())
+        x, y = snap_position(self._screen_rects()[0], size, where)
+        self.window.setPosition(x, y)
 
     def start(self):
         self.status.set_state("loading")

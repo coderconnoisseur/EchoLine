@@ -157,3 +157,14 @@ def test_failed_model_load_is_reported(tmp_path):
         assert wait_until(lambda: echoline.status.property("state") == "model-error")
     finally:
         echoline.shutdown()
+
+
+def test_snap_moves_window_and_remembers_position(running):
+    echoline, _ = running
+
+    echoline.controller.snap("top")
+
+    # Startup placement may already have saved a position; wait for the snapped one.
+    assert wait_until(lambda: echoline.settings_store.settings.position
+                      == [echoline.window.x(), echoline.window.y()], timeout=2)
+    assert echoline.window.y() < 100

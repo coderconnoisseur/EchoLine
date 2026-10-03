@@ -10,8 +10,6 @@ Window {
     visible: true
     width: Screen.width * s.width_percent / 100
     height: Math.min(panel.implicitHeight, Screen.height * 0.4)
-    x: (Screen.width - width) / 2
-    y: Screen.height * 0.85 - height / 2
 
     readonly property real lineHeight: metrics.height * 1.15
 
