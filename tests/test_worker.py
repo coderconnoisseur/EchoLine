@@ -138,3 +138,36 @@ def test_brief_engine_stall_does_not_drop_audio():
 
     assert sum(engine.fed) == 67 * 480
     assert lagging == []
+
+
+def test_flush_never_runs_while_the_worker_is_feeding():
+    # Pausing flushed from the GUI thread while the worker thread could be inside
+    # feed(); the native stream must never be used from two threads at once.
+    class SlowEngine:
+        def __init__(self):
+            self.busy = False
+            self.overlaps = 0
+            self.feeding = threading.Event()
+
+        def feed(self, samples):
+            self.busy = True
+            self.feeding.set()
+            time.sleep(0.2)
+            self.busy = False
+            return []
+
+        def flush(self):
+            if self.busy:
+                self.overlaps += 1
+            return []
+
+    engine = SlowEngine()
+    worker = EngineWorker(engine, lambda evs, ts: None, lambda flag: None)
+    worker.start()
+    worker.push(block(30), captured_at=0.0)
+    assert engine.feeding.wait(timeout=2)
+
+    worker.flush()
+    worker.stop()
+
+    assert engine.overlaps == 0
