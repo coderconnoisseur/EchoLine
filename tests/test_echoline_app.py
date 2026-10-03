@@ -122,10 +122,12 @@ def test_shutdown_closes_the_overlay_window(running):
     # EchoLineApp, crashing the process.
     echoline, _ = running
 
+    import shiboken6
+
     echoline.shutdown()
     echoline.shutdown()                      # idempotent: safe to call twice
 
-    assert not echoline.window.isVisible()
+    assert not shiboken6.isValid(echoline.window)     # deleted along with the QML engine
 
 
 def test_latency_display_is_updated_on_the_gui_thread(running):
@@ -271,3 +273,23 @@ def test_blur_region_follows_window_size_and_radius(running, monkeypatch):
     assert any(radius == 6 for _, _, radius in calls)
     assert len({size for enabled, size, _ in calls if enabled}) >= 2      # re-clipped after resizing
     assert calls[-1][0] is False
+
+
+def test_no_qml_errors_when_python_frees_objects_after_shutdown(tmp_path):
+    # Seen on quit: "Cannot read property 'values' of null" etc. When main()
+    # returned, Python freed the store and models while QML bindings were alive.
+    import shiboken6
+
+    store = SettingsStore(Settings(), tmp_path / "s.json")
+    echoline = EchoLineApp(FakeSource(), EchoEngine, store)
+    echoline.open_settings()
+    errors = []
+    echoline.qml.warnings.connect(lambda items: errors.extend(w.toString() for w in items))
+
+    echoline.shutdown()
+    for obj in (echoline.settings_store, echoline.captions, echoline.status, echoline.controller):
+        if shiboken6.isValid(obj):
+            shiboken6.delete(obj)
+    wait_until(lambda: False, timeout=0.3)
+
+    assert errors == []

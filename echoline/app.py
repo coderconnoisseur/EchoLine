@@ -221,4 +221,6 @@ class EchoLineApp:
         self.window.close()
         if self.settings_window is not None:
             self.settings_window.close()
-        self.qml.deleteLater()
+        # Delete the QML engine now, not later: once the caller returns, Python frees
+        # the store and models in arbitrary order and live bindings would read null.
+        shiboken6.delete(self.qml)
