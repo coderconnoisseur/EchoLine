@@ -333,3 +333,29 @@ def test_switching_source_restarts_capture_and_remembers_it(tmp_path):
         assert store.settings.audio_source == "microphone"
     finally:
         echoline.shutdown()
+
+
+def test_hotkey_taken_by_another_app_is_announced(tmp_path):
+    # Real RegisterHotKey: the combination is already held when the app starts.
+    import ctypes
+
+    user32 = ctypes.windll.user32
+    assert user32.RegisterHotKey(None, 99, 0x2 | 0x1 | 0x4 | 0x4000, 0x7B)   # Ctrl+Alt+Shift+F12
+    try:
+        settings = Settings(hotkey_pause="Ctrl+Alt+Shift+F12")
+        echoline = EchoLineApp(lambda kind: FakeSource(), EchoEngine, SettingsStore(settings, tmp_path / "s.json"))
+        try:
+            assert "Ctrl+Alt+Shift+F12" in echoline.status.property("notice")
+        finally:
+            echoline.shutdown()
+    finally:
+        user32.UnregisterHotKey(None, 99)
+
+
+def test_pause_hotkey_toggles_pause(running):
+    echoline, _ = running
+    callback = next(iter(echoline.hotkeys._callbacks.values()))
+
+    callback()
+
+    assert echoline.paused

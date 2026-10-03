@@ -69,7 +69,7 @@ Window {
             Rectangle {
                 id: statusPill
                 objectName: "statusPill"
-                visible: status.state !== "listening"
+                visible: status.state !== "listening" || status.notice !== ""
                 radius: height / 2
                 color: ["no-device", "no-microphone", "model-error"].indexOf(status.state) >= 0 ? "#b3261e" : "#5a5a5a"
                 width: statusText.implicitWidth + 20
@@ -80,7 +80,7 @@ Window {
                     anchors.centerIn: parent
                     color: "white"
                     font.pixelSize: 13
-                    text: ({ "loading": "Loading speech model…", "no-device": "No audio device", "paused": "Paused",
+                    text: status.notice !== "" ? status.notice : ({ "loading": "Loading speech model…", "no-device": "No audio device", "paused": "Paused",
                              "no-microphone": "No microphone — check Windows privacy settings",
                              "model-error": "Speech model unavailable — check your connection and restart",
                              "settings-reset": "Settings were damaged and have been reset",

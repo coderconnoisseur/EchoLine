@@ -9,6 +9,7 @@ from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickWindow
 
 from .captions.model import CaptionModel
+from .hotkeys import HotkeyManager
 from .pipeline.latency import LatencyTracker
 from .pipeline.worker import EngineWorker
 from .ui.fonts import caption_fonts
@@ -118,6 +119,30 @@ class EchoLineApp:
         self._blur_applied = None
         self._apply_blur()
         settings_store.valuesChanged.connect(self._apply_blur)
+
+        # Thread-level hotkeys (no window): WM_HOTKEY arrives in this thread's queue.
+        self.hotkeys = HotkeyManager(hwnd=None)
+        QCoreApplication.instance().installNativeEventFilter(self.hotkeys)
+        self._register_hotkeys()
+        settings_store.valuesChanged.connect(self._hotkeys_changed)
+
+    def _hotkey_texts(self):
+        s = self.settings_store.settings
+        return (s.hotkey_show_hide, s.hotkey_pause, s.hotkey_click_through)
+
+    def _register_hotkeys(self):
+        self._registered_hotkeys = self._hotkey_texts()
+        self.hotkeys.unregister_all()
+        s = self.settings_store.settings
+        self.hotkeys.register("pause", s.hotkey_pause, lambda: self.set_paused(not self.paused))
+        if self.hotkeys.failed:
+            keys = {"show_hide": s.hotkey_show_hide, "pause": s.hotkey_pause,
+                    "click_through": s.hotkey_click_through}
+            self.status.set_notice(f"Hotkey {keys[self.hotkeys.failed[0]]} is used by another app")
+
+    def _hotkeys_changed(self):
+        if self._hotkey_texts() != self._registered_hotkeys:
+            self._register_hotkeys()
         self.window.widthChanged.connect(self._apply_blur)
         self.window.heightChanged.connect(self._apply_blur)
 
@@ -260,6 +285,8 @@ class EchoLineApp:
         if self._closed:
             return
         self._closed = True
+        self.hotkeys.unregister_all()
+        QCoreApplication.instance().removeNativeEventFilter(self.hotkeys)
         self._save_position.stop()
         self.settings_store.setValue("position", [self.window.x(), self.window.y()])
         self.settings_store.save_now()
