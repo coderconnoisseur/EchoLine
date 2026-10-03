@@ -27,16 +27,29 @@ class Settings:
     position: Optional[list] = None
     always_on_top: bool = True
     caption_mode: str = "rolling"
+    audio_source: str = "system"
+    auto_hide: bool = False
+    click_through: bool = False
+    start_with_windows: bool = False
+    hotkey_show_hide: str = "Ctrl+Alt+C"
+    hotkey_pause: str = "Ctrl+Alt+P"
+    hotkey_click_through: str = "Ctrl+Alt+T"
 
 
 RANGES = {"font_size": (14, 64), "line_count": (1, 3), "background_opacity": (0.0, 1.0),
           "corner_radius": (0, 32), "width_percent": (20, 90)}
 CHOICES = {"font_weight": (400, 500, 600, 700), "outline": ("outline", "shadow", "none"),
-           "caption_mode": ("rolling", "subtitle")}
+           "caption_mode": ("rolling", "subtitle"), "audio_source": ("system", "microphone")}
 COLORS = ("text_color", "outline_color", "background_color")
 
 
+HOTKEY = re.compile(r"^((Ctrl|Alt|Shift|Win)\+){1,3}([A-Z0-9]|F([1-9]|1[0-2]))$")
+HOTKEYS = ("hotkey_show_hide", "hotkey_pause", "hotkey_click_through")
+
+
 def _valid(name, value, default):
+    if name in HOTKEYS:
+        return value if isinstance(value, str) and (value == "" or HOTKEY.match(value)) else default
     if name in RANGES:
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
             return default
