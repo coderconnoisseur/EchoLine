@@ -142,3 +142,29 @@ def test_close_releases_the_native_transcriber():
     engine.close()
 
     assert stream.closed and transcriber.closed
+
+
+def test_load_uses_streaming_settings_that_keep_cost_flat(monkeypatch):
+    # By default Moonshine returns every line's audio on every update, so each
+    # update got slower as the session grew until captions fell behind.
+    import moonshine_voice
+
+    created = {}
+
+    class FakeTranscriber:
+        def __init__(self, model_path, model_arch, update_interval, options):
+            created.update(update_interval=update_interval, options=options)
+
+        def create_stream(self, update_interval):
+            created["stream_interval"] = update_interval
+            return FakeStream([])
+
+    monkeypatch.setattr(moonshine_voice, "Transcriber", FakeTranscriber, raising=False)
+    monkeypatch.setattr(moonshine_voice, "get_model_for_language", lambda language, arch: ("path", arch))
+
+    MoonshineEngine.load(moonshine_voice.ModelArch.TINY_STREAMING)
+
+    assert created["options"]["return_audio_data"] == "false"
+    # Capping lines shorter than Moonshine's default split sentences and doubled WER.
+    assert "vad_max_segment_duration" not in created["options"]
+    assert created["update_interval"] == created["stream_interval"] == 0.25

@@ -48,3 +48,30 @@ End-to-end sound-to-screen latency measured by `--show-latency` while playing
 | Benchmark running concurrently | 300–420 ms | 550–610 ms |
 
 On an idle machine both spec targets are met (p50 < 300 ms, p95 < 600 ms).
+
+## Streaming lag investigation (2026-10-03)
+
+Reported symptom: after the speaker pauses for about 2 s, captions "catch up";
+during long continuous speech they fall behind the speaker.
+
+Reproduced by streaming LibriSpeech speech in real time through `EngineWorker`
+and Moonshine Tiny, logging engine time per 10 s of audio.
+
+| Finding | Evidence |
+|---|---|
+| Engine time grew with **session length**, not line length | Per 10 s window: 3.9 s → 10.5 s over 70 s of continuous speech, even with lines capped at 5 s |
+| Cause: every update returned all past lines with their audio (`return_audio_data` defaults to true) | With it off, engine time stays flat at 3–5 s per 10 s for 5 minutes |
+| The worker then dropped speech, not just delayed it | 2 s pauses, 110 s of audio: 6.0 s dropped, p95 delay 1.45 s |
+| Capping line length hurts accuracy | `vad_max_segment_duration` 5 s: WER 0.286 vs 0.132 at the default 15 s |
+| One slow pass could exceed the 1 s backlog limit | Single passes of 1–2.5 s caused drops although the average is ~45% of real time |
+
+Changes: `return_audio_data=false`, update interval 0.25 s, backlog limit 3 s,
+line length left at the default.
+
+| Speech with 2 s pauses, Tiny | Audio dropped | Delay p50 / p95 |
+|---|---|---|
+| Before | 6.0 s of 110 s | 359 / 1453 ms |
+| After | 0 | 203 / 390–550 ms |
+
+"Delay" is from capture of the newest audio block to the engine emitting text;
+words spoken just after an update also wait for the next update (up to 0.25 s).

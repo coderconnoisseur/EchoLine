@@ -95,7 +95,7 @@ class SpeechEngine(Protocol):
   source.
 - `MoonshineEngine` (default) wraps `moonshine-voice` streaming
   transcription. `VoskEngine` adapts the existing `SpeechRecognizer`.
-- **Backlog protection:** if more than ~1 s of audio is waiting, the oldest
+- **Backlog protection:** if more than ~3 s of audio is waiting, the oldest
   audio is dropped and a `lagging` status is raised so the UI can suggest a
   smaller model. Captions must never drift behind real time.
 

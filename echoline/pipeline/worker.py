@@ -9,7 +9,7 @@ from ..engine.base import SAMPLE_RATE
 class EngineWorker:
     """Feeds queued audio to a speech engine on its own thread, never falling behind real time."""
 
-    def __init__(self, engine, on_events, on_lagging, max_backlog_s=1.0, lagging_hold_s=2.0, clock=time.monotonic):
+    def __init__(self, engine, on_events, on_lagging, max_backlog_s=3.0, lagging_hold_s=2.0, clock=time.monotonic):
         self._engine = engine
         self._on_events = on_events
         self._on_lagging = on_lagging
