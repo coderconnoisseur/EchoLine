@@ -42,8 +42,10 @@ def wait_until(condition, timeout=3.0):
 
 @pytest.fixture
 def settings_window(tmp_path):
-    store = SettingsStore(Settings(), tmp_path / "settings.json")
-    echoline = EchoLineApp(lambda kind: FakeSource(), EchoEngine, store)
+    store = SettingsStore(Settings(model="tiny", onboarded=True), tmp_path / "settings.json")
+    echoline = EchoLineApp(lambda kind: FakeSource(), EchoEngine, store,
+                           model_ops={"download": lambda name, cb: None, "check_hardware": lambda: "tiny",
+                                      "is_downloaded": lambda name: True})
     warnings = []
     echoline.qml.warnings.connect(lambda items: warnings.extend(w.toString() for w in items))
     window = echoline.open_settings()
@@ -159,3 +161,34 @@ def test_pressing_keys_records_a_new_hotkey(settings_window):
 
     assert store.settings.hotkey_pause == "Ctrl+Alt+K"
     assert button.property("text") == "Ctrl+Alt+K"
+
+
+def test_model_box_switches_model_and_reloads(settings_window):
+    echoline, window, store, warnings = settings_window
+    box = find(window, "modelBox")
+    reloads = []
+    echoline.reload_engine = lambda: reloads.append(True)
+
+    assert box.property("currentText") == "Tiny — faster"
+    box.activated.emit(1)                         # Small
+
+    assert store.settings.model == "small" and reloads == [True]
+    assert find(window, "modelProgress").property("visible") is False
+    assert warnings == []
+
+
+def test_model_box_shows_the_old_model_after_a_failed_download(settings_window):
+    echoline, window, store, _ = settings_window
+    box = find(window, "modelBox")
+
+    def offline(name, on_progress):
+        raise OSError("offline")
+
+    echoline.setup._is_downloaded = lambda name: False
+    echoline.setup._download = offline
+    box.setProperty("currentIndex", 1)            # what a click does before onActivated
+    box.activated.emit(1)
+
+    assert wait_until(lambda: echoline.setup.property("phase") == "idle")
+    assert store.settings.model == "tiny"
+    assert box.property("currentText") == "Tiny — faster"
