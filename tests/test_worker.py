@@ -122,3 +122,19 @@ def test_engine_errors_do_not_kill_the_worker():
     worker.process_pending()
 
     assert events == [([Partial(0, "hi")], 2.0)]
+
+
+def test_brief_engine_stall_does_not_drop_audio():
+    # A single slow pass (long line re-decoded, CPU spike) can hold the worker
+    # for a second or two; dropping audio then loses words the engine would
+    # have caught up on.
+    events, lagging, on_events, on_lagging = collect()
+    engine = RecordingEngine()
+    worker = EngineWorker(engine, on_events, on_lagging)
+
+    for i in range(67):                       # ~2 s queued behind a stalled pass
+        worker.push(block(30), captured_at=i * 0.03)
+    worker.process_pending()
+
+    assert sum(engine.fed) == 67 * 480
+    assert lagging == []
