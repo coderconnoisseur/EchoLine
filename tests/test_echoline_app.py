@@ -475,7 +475,7 @@ def test_overlapping_reloads_keep_one_worker(tmp_path):
     echoline.reload_engine()
     assert wait_until(lambda: len(engines) == 2)
     wait_until(lambda: False, timeout=0.2)
-    assert echoline.worker._engine is engines[-1] and ClosingEngine.closed == 1
+    assert echoline.worker._engine in engines and ClosingEngine.closed == 1   # one live, one closed
     echoline.shutdown()
 
 
@@ -501,4 +501,24 @@ def test_bring_to_front_prefers_onboarding(tmp_path):
     echoline.close_onboarding()
     echoline.bring_to_front()
     assert echoline.visible
+    echoline.shutdown()
+
+
+def test_a_late_older_load_does_not_replace_a_newer_engine(tmp_path):
+    # Picking Small then Tiny: Small loads slower, finishes last, and must not win.
+    delays, engines = [0.3, 0.0], []
+
+    def factory():
+        time.sleep(delays.pop(0))
+        engines.append(ClosingEngine())
+        return engines[-1]
+
+    echoline = EchoLineApp(lambda kind: FakeSource(), factory, SettingsStore(Settings(), tmp_path / "s.json"))
+    ClosingEngine.closed = 0
+    echoline.start()
+    echoline.reload_engine()
+    assert wait_until(lambda: len(engines) == 2)
+    wait_until(lambda: False, timeout=0.2)
+    newer = engines[0]                           # the 0 s load finished first
+    assert echoline.worker._engine is newer and ClosingEngine.closed == 1
     echoline.shutdown()

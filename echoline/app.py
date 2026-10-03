@@ -26,7 +26,7 @@ class Bridge(QObject):
     """Carries worker-thread callbacks onto the GUI thread."""
     events = Signal(object, object)      # (events, captured_at)
     status = Signal(str)
-    engine_ready = Signal(object)
+    engine_ready = Signal(object, int)   # (engine, load number)
     frame_shown = Signal(float)          # monotonic time a frame reached the screen
 
 
@@ -107,6 +107,7 @@ class EchoLineApp:
         self.latency = LatencyTracker()
         self.worker = None
         self._engine = None
+        self._loads = 0              # numbers engine loads so only the newest is used
         self._source_state = "listening"
         self._pending_capture = None
         self._closed = False
@@ -268,22 +269,27 @@ class EchoLineApp:
             self._notice_active = True
             self.status.set_state("settings-reset")
             QTimer.singleShot(6000, self._end_notice)
-        threading.Thread(target=self._load_engine, name="engine-load", daemon=True).start()
+        self._begin_load()
 
-    def _load_engine(self):
+    def _begin_load(self):
+        self._loads += 1
+        threading.Thread(target=self._load_engine, args=(self._loads,), name="engine-load", daemon=True).start()
+
+    def _load_engine(self, number):
         try:
             engine = self.engine_factory()
         except Exception:
             traceback.print_exc()
-            self.bridge.status.emit("model-error")
+            if number == self._loads:
+                self.bridge.status.emit("model-error")
             return
-        self.bridge.engine_ready.emit(engine)
+        self.bridge.engine_ready.emit(engine, number)
 
-    def _on_engine_ready(self, engine):
-        if self._closed:
-            self._close_engine(engine)       # finished loading after quit
+    def _on_engine_ready(self, engine, number):
+        if self._closed or number != self._loads:
+            self._close_engine(engine)       # finished after quit, or a newer load was asked for
             return
-        self._stop_engine()                  # a reload overtook an earlier load
+        self._stop_engine()
         self._engine = engine
         self.worker = EngineWorker(
             engine,
@@ -315,7 +321,7 @@ class EchoLineApp:
         self._stop_engine()
         if not self.paused:
             self.status.set_state("loading")
-        threading.Thread(target=self._load_engine, name="engine-load", daemon=True).start()
+        self._begin_load()
 
     def _start_source(self):
         self.source.start(self.worker.push, self.bridge.status.emit)
