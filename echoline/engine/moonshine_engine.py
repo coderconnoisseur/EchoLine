@@ -20,12 +20,17 @@ class MoonshineEngine:
         stream.add_listener(self._on_event)
         stream.start()
 
+    # By default every update returns every past line's audio, so update cost
+    # grows with session length until captions fall behind. We only need text.
+    STREAMING_OPTIONS = {"return_audio_data": "false"}
+
     @classmethod
-    def load(cls, model_arch, update_interval=0.15):
+    def load(cls, model_arch, update_interval=0.25, options=None):
         from moonshine_voice import Transcriber, get_model_for_language
 
         path, arch = get_model_for_language("en", model_arch)
-        transcriber = Transcriber(model_path=path, model_arch=arch, update_interval=update_interval)
+        transcriber = Transcriber(model_path=path, model_arch=arch, update_interval=update_interval,
+                                  options={**cls.STREAMING_OPTIONS, **(options or {})})
         engine = cls(transcriber.create_stream(update_interval=update_interval))
         engine._transcriber = transcriber  # keep the native handle alive
         return engine
