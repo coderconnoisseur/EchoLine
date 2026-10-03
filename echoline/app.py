@@ -139,6 +139,8 @@ class EchoLineApp:
         self._blur_applied = None
         self._apply_blur()
         settings_store.valuesChanged.connect(self._apply_blur)
+        self.window.widthChanged.connect(self._apply_blur)
+        self.window.heightChanged.connect(self._apply_blur)
 
         self._autostart_applied = settings_store.settings.start_with_windows
         settings_store.valuesChanged.connect(self._apply_autostart)
@@ -202,8 +204,6 @@ class EchoLineApp:
     def _hotkeys_changed(self):
         if self._hotkey_texts() != self._registered_hotkeys:
             self._register_hotkeys()
-        self.window.widthChanged.connect(self._apply_blur)
-        self.window.heightChanged.connect(self._apply_blur)
 
     def _apply_blur(self):
         settings = self.settings_store.settings

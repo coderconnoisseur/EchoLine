@@ -409,3 +409,16 @@ def test_click_through_survives_unrelated_setting_changes(running):
     wait_until(lambda: False, timeout=0.2)
 
     assert echoline.window.flags() & Qt.WindowTransparentForInput
+
+
+def test_settings_changes_do_not_pile_up_window_connections(running):
+    # The blur's width/height hooks had moved into _hotkeys_changed, so every
+    # settings change connected them again.
+    echoline, _ = running
+    signal = "2widthChanged(int)"
+    before = echoline.window.receivers(signal)
+
+    for size in range(20, 25):
+        echoline.settings_store.setValue("font_size", size)
+
+    assert echoline.window.receivers(signal) == before
