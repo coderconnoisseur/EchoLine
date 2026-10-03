@@ -422,3 +422,14 @@ def test_settings_changes_do_not_pile_up_window_connections(running):
         echoline.settings_store.setValue("font_size", size)
 
     assert echoline.window.receivers(signal) == before
+
+
+def test_click_through_saved_on_is_announced_at_startup(tmp_path):
+    # Starting with click-through on gave no hint why the captions could not be
+    # dragged or hovered.
+    store = SettingsStore(Settings(click_through=True), tmp_path / "s.json")
+    echoline = EchoLineApp(lambda kind: FakeSource(), EchoEngine, store)
+    try:
+        assert "Click-through on" in echoline.status.property("notice")
+    finally:
+        echoline.shutdown()

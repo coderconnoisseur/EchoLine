@@ -62,3 +62,33 @@ def test_launch_command_runs_the_checkout_without_a_console():
     assert "pythonw" in command.lower()
     assert str(Path(echoline.__file__).resolve().parent.parent) in command
     assert "run_module('echoline'" in command
+
+
+def windows_split(command):
+    """Split a command line exactly as Windows does for a new process."""
+    import ctypes
+    from ctypes import wintypes
+
+    shell32 = ctypes.windll.shell32
+    shell32.CommandLineToArgvW.restype = ctypes.POINTER(wintypes.LPWSTR)
+    count = ctypes.c_int()
+    argv = shell32.CommandLineToArgvW(command, ctypes.byref(count))
+    try:
+        return [argv[i] for i in range(count.value)]
+    finally:
+        ctypes.windll.kernel32.LocalFree(argv)
+
+
+def test_windows_passes_the_bootstrap_intact_for_awkward_paths(monkeypatch, tmp_path):
+    import ast
+
+    import echoline.autostart as autostart
+
+    root = tmp_path / "O'Brien \"quoted\" dir" / "EchoLine"
+    monkeypatch.setattr(autostart, "__file__", str(root / "echoline" / "autostart.py"))
+
+    args = windows_split(launch_command())
+
+    assert args[0].lower().endswith("pythonw.exe") and args[1] == "-c"
+    ast.parse(args[2])
+    assert str(root) in args[2] or repr(str(root)) in args[2]

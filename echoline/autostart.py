@@ -1,3 +1,4 @@
+import subprocess
 import sys
 from pathlib import Path
 
@@ -12,8 +13,9 @@ def launch_command():
     pythonw = Path(sys.executable).with_name("pythonw.exe")
     root = Path(__file__).resolve().parent.parent
     # A Run entry starts in an arbitrary folder, so put the checkout on the path explicitly.
-    bootstrap = f"import sys, runpy; sys.path.insert(0, r'{root}'); runpy.run_module('echoline', run_name='__main__')"
-    return f'"{pythonw}" -c "{bootstrap}"'
+    bootstrap = f"import sys, runpy; sys.path.insert(0, {str(root)!r}); runpy.run_module('echoline', run_name='__main__')"
+    # list2cmdline quotes and escapes exactly the way Windows splits a command line.
+    return subprocess.list2cmdline([str(pythonw), "-c", bootstrap])
 
 
 def _registry(registry):
