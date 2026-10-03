@@ -1,4 +1,4 @@
-from PySide6.QtCore import Property, QAbstractListModel, QByteArray, QModelIndex, Qt, Signal
+from PySide6.QtCore import Property, QAbstractListModel, QByteArray, QModelIndex, Qt, QTimer, Signal
 
 from ..engine.base import Final
 
@@ -23,9 +23,13 @@ class CaptionModel(QAbstractListModel):
 
     latestChanged = Signal()
 
-    def __init__(self, max_utterances=6, parent=None):
+    def __init__(self, max_utterances=6, settle_after_ms=600, parent=None):
         super().__init__(parent)
         self.max_utterances = max_utterances
+        # Moonshine only sends a new guess when the text changes, so the last words
+        # of a phrase would wait for the final; a guess that holds this long has settled.
+        self._settle_timer = QTimer(self, singleShot=True, interval=settle_after_ms)
+        self._settle_timer.timeout.connect(self._settle_all)
         self._rows = []          # [utterance_id, text, final, settled]
         self._highest_dropped = -1
 
@@ -62,7 +66,19 @@ class CaptionModel(QAbstractListModel):
     def apply(self, events):
         before = tuple(self._latest())
         for event in events:
-            self._apply_one(event.utterance_id, event.text, isinstance(event, Final))
+            self._apply_one(event.utterance_id, " ".join(event.text.split()), isinstance(event, Final))
+        if tuple(self._latest()) != before:
+            self.latestChanged.emit()
+        if any(not entry[2] for entry in self._rows):
+            self._settle_timer.start()
+
+    def _settle_all(self):
+        before = tuple(self._latest())
+        for row, entry in enumerate(self._rows):
+            if entry[3] != entry[1]:
+                entry[3] = entry[1]
+                index = self.index(row)
+                self.dataChanged.emit(index, index, [SETTLED_ROLE])
         if tuple(self._latest()) != before:
             self.latestChanged.emit()
 

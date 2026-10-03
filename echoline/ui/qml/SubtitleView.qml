@@ -38,7 +38,7 @@ Item {
     SubtitleText {
         id: subtitleText
         objectName: "subtitleText"
-        text: root.latestMarkup
+        text: root.shownText
     }
 
     ParallelAnimation {
@@ -47,15 +47,16 @@ Item {
         NumberAnimation { target: subtitleText; property: "opacity"; from: 0; to: 1; duration: 200 }
     }
 
-    Connections {
-        target: captions
-        function onLatestChanged() {
-            if (captions.latestId !== root.shownId && root.shownId !== -1) {
-                outgoing.text = root.shownText
-                crossFade.restart()
-            }
-            root.shownId = captions.latestId
-            root.shownText = root.latestMarkup
+    // Follows caption updates and dim/hide switches alike. A new phrase with nothing
+    // to show yet ("hide" mode) keeps the old one up instead of blanking the screen.
+    onLatestMarkupChanged: {
+        if (latestMarkup === "" && captions.latestId !== shownId)
+            return
+        if (captions.latestId !== shownId && shownId !== -1) {
+            outgoing.text = shownText
+            crossFade.restart()
         }
+        shownId = captions.latestId
+        shownText = latestMarkup
     }
 }

@@ -1,3 +1,5 @@
+import time
+
 from PySide6.QtCore import QCoreApplication, Qt
 
 from echoline.captions.model import CaptionModel
@@ -112,3 +114,24 @@ def test_a_correction_inside_settled_words_shrinks_them():
     model.apply([Partial(0, "Ice cream for you")])
 
     assert settled(model) == ""
+
+
+def test_spacing_differences_do_not_unsettle_words():
+    model = CaptionModel()
+    model.apply([Partial(0, " It was")])
+    model.apply([Partial(0, " It  was the best")])
+
+    assert settled(model) == "It was"
+    assert model.property("latestText") == "It was the best"
+
+
+def test_a_guess_that_stops_changing_settles_after_a_pause():
+    model = CaptionModel(settle_after_ms=50)
+    model.apply([Partial(0, "It was the best of times")])
+    deadline = time.monotonic() + 1
+    while settled(model) != "It was the best of times" and time.monotonic() < deadline:
+        app.processEvents()
+        time.sleep(0.01)
+
+    assert settled(model) == "It was the best of times"
+    assert model.property("latestSettled") == "It was the best of times"

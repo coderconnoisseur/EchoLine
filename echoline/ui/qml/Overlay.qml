@@ -175,6 +175,7 @@ Window {
                             property int utteranceId: model.utteranceId
                             width: captionColumn.width
                             text: Captions.markup(model.text, model.settled, overlay.s.unsettled_words, overlay.s.text_color)
+                            visible: text !== ""       // "hide" mode: no blank line before a word settles
                             opacity: 0
                             Component.onCompleted: opacity = Qt.binding(() => model.final ? 1.0 : 0.85)
                             Behavior on opacity { NumberAnimation { duration: 160 } }
