@@ -8,6 +8,7 @@ from PySide6.QtGui import QFontDatabase, QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickWindow
 
+from .autostart import set_start_with_windows
 from .captions.model import CaptionModel
 from .hotkeys import HotkeyManager
 from .pipeline.latency import LatencyTracker
@@ -131,6 +132,8 @@ class EchoLineApp:
         self._apply_blur()
         settings_store.valuesChanged.connect(self._apply_blur)
 
+        self._autostart_applied = settings_store.settings.start_with_windows
+        settings_store.valuesChanged.connect(self._apply_autostart)
         self.window.setIcon(app_icon())
         self.window.setFlag(Qt.WindowTransparentForInput, settings_store.settings.click_through)
         self.tray = TrayIcon(self)
@@ -166,6 +169,15 @@ class EchoLineApp:
 
     def quit(self):
         QCoreApplication.quit()
+
+    def _apply_autostart(self):
+        wanted = self.settings_store.settings.start_with_windows
+        if wanted != self._autostart_applied:
+            self._autostart_applied = wanted
+            try:
+                set_start_with_windows(wanted)
+            except OSError:
+                self.status.set_notice("Could not change start with Windows")
 
     def set_click_through(self, enabled):
         """Let clicks pass through the captions to the window below."""

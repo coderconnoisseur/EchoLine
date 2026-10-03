@@ -386,3 +386,15 @@ def test_resizing_the_window_updates_width_percent(running):
     echoline.window.setWidth(int(screen_width * 0.5))      # as a system resize would
 
     assert wait_until(lambda: echoline.settings_store.settings.width_percent == 50, timeout=2)
+
+
+def test_start_with_windows_follows_the_setting(running, monkeypatch):
+    echoline, _ = running
+    calls = []
+    monkeypatch.setattr("echoline.app.set_start_with_windows", calls.append)
+
+    echoline.settings_store.setValue("start_with_windows", True)
+    echoline.settings_store.setValue("font_size", 30)          # unrelated change: no extra call
+    echoline.settings_store.setValue("start_with_windows", False)
+
+    assert calls == [True, False]
