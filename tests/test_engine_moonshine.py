@@ -171,3 +171,14 @@ def test_load_uses_streaming_settings_that_keep_cost_flat(monkeypatch):
     # which capped updates at ~1.4/s whatever the Python interval was.
     assert created["options"]["transcription_interval"] == "0.1"
     assert created["update_interval"] == created["stream_interval"] == 0.1
+
+
+def test_flush_restarts_the_stream_so_feeding_can_continue():
+    stream = FakeStream([[LineTextChanged(Line(1, "after", False))]])
+    engine = MoonshineEngine(stream)
+    stream.started = False
+
+    engine.flush()
+
+    assert stream.started
+    assert engine.feed(np.zeros(1, np.float32)) == [Partial(0, "after")]

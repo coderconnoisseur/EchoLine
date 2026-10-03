@@ -6,6 +6,7 @@ import time
 
 import numpy as np
 import pytest
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QGuiApplication
 
 from echoline.app import EchoLineApp
@@ -52,7 +53,7 @@ def wait_until(condition, timeout=3.0):
 @pytest.fixture
 def running(tmp_path):
     source = FakeSource()
-    echoline = EchoLineApp(source, EchoEngine, SettingsStore(Settings(), tmp_path / "settings.json"),
+    echoline = EchoLineApp(lambda kind: source, EchoEngine, SettingsStore(Settings(), tmp_path / "settings.json"),
                            show_latency=True)
     echoline.start()
     assert wait_until(lambda: echoline.status.property("state") == "listening")
@@ -153,7 +154,7 @@ def test_failed_model_load_is_reported(tmp_path):
     def offline_engine():
         raise ConnectionError("could not download model")
 
-    echoline = EchoLineApp(FakeSource(), offline_engine, SettingsStore(Settings(), tmp_path / "s.json"))
+    echoline = EchoLineApp(lambda kind: FakeSource(), offline_engine, SettingsStore(Settings(), tmp_path / "s.json"))
     echoline.start()
     try:
         assert wait_until(lambda: echoline.status.property("state") == "model-error")
@@ -177,7 +178,7 @@ def test_shutdown_saves_pending_settings(tmp_path):
 
     path = tmp_path / "settings.json"
     store = SettingsStore(Settings(), path, save_delay_ms=60_000)
-    echoline = EchoLineApp(FakeSource(), EchoEngine, store)
+    echoline = EchoLineApp(lambda kind: FakeSource(), EchoEngine, store)
     store.setValue("font_size", 33)
 
     echoline.shutdown()
@@ -186,7 +187,7 @@ def test_shutdown_saves_pending_settings(tmp_path):
 
 
 def test_reset_settings_are_announced(tmp_path):
-    echoline = EchoLineApp(FakeSource(), EchoEngine, SettingsStore(Settings(), tmp_path / "s.json"),
+    echoline = EchoLineApp(lambda kind: FakeSource(), EchoEngine, SettingsStore(Settings(), tmp_path / "s.json"),
                            settings_reset=True)
     echoline.start()
     try:
@@ -281,7 +282,7 @@ def test_no_qml_errors_when_python_frees_objects_after_shutdown(tmp_path):
     import shiboken6
 
     store = SettingsStore(Settings(), tmp_path / "s.json")
-    echoline = EchoLineApp(FakeSource(), EchoEngine, store)
+    echoline = EchoLineApp(lambda kind: FakeSource(), EchoEngine, store)
     echoline.open_settings()
     errors = []
     echoline.qml.warnings.connect(lambda items: errors.extend(w.toString() for w in items))
@@ -293,3 +294,42 @@ def test_no_qml_errors_when_python_frees_objects_after_shutdown(tmp_path):
     wait_until(lambda: False, timeout=0.3)
 
     assert errors == []
+
+
+def test_pause_finalizes_and_ignores_audio_until_resumed(running):
+    echoline, source = running
+    source.on_audio(np.zeros(480, np.float32), time.monotonic())
+    wait_until(lambda: echoline.captions.rowCount() == 1)
+
+    echoline.set_paused(True)
+    assert wait_until(lambda: echoline.status.property("state") == "paused")
+    assert source.stopped
+    rows = [echoline.captions.data(echoline.captions.index(i), Qt.UserRole + 3)
+            for i in range(echoline.captions.rowCount())]
+    assert rows[-1] is True                      # the paused partial became final
+
+    echoline.set_paused(False)
+    assert wait_until(lambda: echoline.status.property("state") == "listening")
+
+
+def test_switching_source_restarts_capture_and_remembers_it(tmp_path):
+    started = []
+
+    class Recording(FakeSource):
+        def __init__(self, kind):
+            self.kind = kind
+
+        def start(self, on_audio, on_status):
+            started.append(self.kind)
+            super().start(on_audio, on_status)
+
+    store = SettingsStore(Settings(), tmp_path / "s.json")
+    echoline = EchoLineApp(Recording, EchoEngine, store)
+    echoline.start()
+    try:
+        assert wait_until(lambda: started == ["system"])
+        echoline.set_source("microphone")
+        assert started == ["system", "microphone"]
+        assert store.settings.audio_source == "microphone"
+    finally:
+        echoline.shutdown()

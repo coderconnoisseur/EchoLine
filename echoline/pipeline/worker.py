@@ -65,6 +65,13 @@ class EngineWorker:
             if events:
                 self._on_events(events, captured_at)
 
+    def flush(self):
+        """Finish the current utterance (e.g. on pause) and keep running."""
+        self.process_pending()
+        finals = self._engine.flush()
+        if finals:
+            self._on_events(finals, None)
+
     def _run(self):
         while self._running:
             self._wakeup.wait(timeout=0.5)

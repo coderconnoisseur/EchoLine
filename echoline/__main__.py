@@ -37,7 +37,12 @@ def main(argv=None):
 
     arch = {"tiny": ModelArch.TINY_STREAMING, "small": ModelArch.SMALL_STREAMING,
             "medium": ModelArch.MEDIUM_STREAMING}[args.model]
-    echoline = EchoLineApp(LoopbackSource(), lambda: MoonshineEngine.load(arch), store,
+    from .audio.microphone import MicrophoneSource
+
+    def make_source(kind):
+        return MicrophoneSource() if kind == "microphone" else LoopbackSource()
+
+    echoline = EchoLineApp(make_source, lambda: MoonshineEngine.load(arch), store,
                            show_latency=args.show_latency, settings_reset=was_reset)
     echoline.start()
     try:

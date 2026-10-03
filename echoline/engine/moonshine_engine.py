@@ -55,7 +55,9 @@ class MoonshineEngine:
 
     def flush(self) -> list[Final]:
         self._stream.stop()
-        return [event for event in self._take() if isinstance(event, Final)]
+        finals = [event for event in self._take() if isinstance(event, Final)]
+        self._stream.start()      # ready for more audio (e.g. after a pause)
+        return finals
 
     def close(self):
         """Release the native stream and model; the engine is unusable afterwards."""

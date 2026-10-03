@@ -41,7 +41,7 @@ def wait_until(condition, timeout=3.0):
 @pytest.fixture
 def settings_window(tmp_path):
     store = SettingsStore(Settings(), tmp_path / "settings.json")
-    echoline = EchoLineApp(FakeSource(), EchoEngine, store)
+    echoline = EchoLineApp(lambda kind: FakeSource(), EchoEngine, store)
     warnings = []
     echoline.qml.warnings.connect(lambda items: warnings.extend(w.toString() for w in items))
     window = echoline.open_settings()

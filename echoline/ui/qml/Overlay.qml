@@ -80,7 +80,7 @@ Window {
                     anchors.centerIn: parent
                     color: "white"
                     font.pixelSize: 13
-                    text: ({ "loading": "Loading speech model…", "no-device": "No audio device",
+                    text: ({ "loading": "Loading speech model…", "no-device": "No audio device", "paused": "Paused",
                              "no-microphone": "No microphone — check Windows privacy settings",
                              "model-error": "Speech model unavailable — check your connection and restart",
                              "settings-reset": "Settings were damaged and have been reset",

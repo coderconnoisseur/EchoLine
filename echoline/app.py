@@ -48,6 +48,27 @@ class Controller(QObject):
     def quit(self):
         QCoreApplication.quit()
 
+    pausedChanged = Signal()
+    sourceChanged = Signal()
+
+    @Slot()
+    def togglePause(self):
+        self._app.set_paused(not self._app.paused)
+
+    @Slot()
+    def toggleSource(self):
+        current = self._app.settings_store.settings.audio_source
+        self._app.set_source("microphone" if current == "system" else "system")
+
+    def _get_paused(self):
+        return self._app.paused
+
+    def _get_source_name(self):
+        return self._app.source.name
+
+    paused = Property(bool, _get_paused, notify=pausedChanged)
+    sourceName = Property(str, _get_source_name, notify=sourceChanged)
+
     def _get_fonts(self):
         return caption_fonts(QFontDatabase.families())
 
@@ -55,8 +76,10 @@ class Controller(QObject):
 
 
 class EchoLineApp:
-    def __init__(self, source, engine_factory, settings_store, show_latency=False, settings_reset=False):
-        self.source = source
+    def __init__(self, source_factory, engine_factory, settings_store, show_latency=False, settings_reset=False):
+        self.source_factory = source_factory
+        self.source = source_factory(settings_store.settings.audio_source)
+        self.paused = False
         self.engine_factory = engine_factory
         self.captions = CaptionModel()
         self.status = OverlayStatus()
@@ -162,11 +185,40 @@ class EchoLineApp:
             on_events=lambda events, captured_at: self.bridge.events.emit(events, captured_at),
             on_lagging=lambda lagging: self.bridge.status.emit("lagging" if lagging else "caught-up"))
         self.worker.start()
+        self._start_source()
+
+    def _start_source(self):
         self.source.start(self.worker.push, self.bridge.status.emit)
 
+    def set_paused(self, paused):
+        if paused == self.paused or self.worker is None:
+            return
+        self.paused = paused
+        if paused:
+            self.source.stop()
+            self.worker.flush()
+            self.status.set_state("paused")
+        else:
+            self._source_state = "listening"
+            self.status.set_state("listening")
+            self._start_source()
+        self.controller.pausedChanged.emit()
+
+    def set_source(self, kind):
+        if kind == self.settings_store.settings.audio_source:
+            return
+        self.settings_store.setValue("audio_source", kind)
+        self.source.stop()
+        self.source = self.source_factory(kind)
+        if self.worker is not None and not self.paused:
+            self._start_source()
+        self.controller.sourceChanged.emit()
+
     def _on_status(self, state):
-        if state in ("listening", "no-device"):
+        if state in ("listening", "no-device", "no-microphone"):
             self._source_state = state
+        if self.paused and state != "model-error":
+            return      # a late source status must not hide "Paused"
         if self._notice_active:
             return      # keep the notice up; _end_notice shows the latest state
         self.status.set_state(self._source_state if state == "caught-up" else state)
