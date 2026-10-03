@@ -30,15 +30,21 @@ def collect():
     return events, lagging, (lambda evs, ts: events.append((evs, ts))), lagging.append
 
 
-def test_events_are_delivered_with_capture_time_of_newest_block():
+def test_queued_audio_is_fed_as_one_chunk_stamped_with_the_newest_block():
+    # Moonshine costs far less per second when fed big chunks (1 s: 0.33x real
+    # time, 50 ms: 0.74x). Feeding a backlog block by block kept a lagging
+    # engine lagging; one chunk lets it catch up.
     events, lagging, on_events, on_lagging = collect()
-    worker = EngineWorker(RecordingEngine(), on_events, on_lagging)
+    engine = RecordingEngine()
+    worker = EngineWorker(engine, on_events, on_lagging)
 
     worker.push(block(30), captured_at=1.0)
     worker.push(block(30), captured_at=1.03)
+    worker.push(block(30), captured_at=1.06)
     worker.process_pending()
 
-    assert events == [([Partial(0, "hi")], 1.0), ([Partial(0, "hi")], 1.03)]
+    assert engine.fed == [3 * 480]
+    assert events == [([Partial(0, "hi")], 1.06)]
 
 
 def test_backlog_drops_oldest_audio_and_flags_lagging():
@@ -118,6 +124,7 @@ def test_engine_errors_do_not_kill_the_worker():
     worker = EngineWorker(Flaky(), on_events, on_lagging)
 
     worker.push(block(30), captured_at=1.0)
+    worker.process_pending()                  # this feed raises
     worker.push(block(30), captured_at=2.0)
     worker.process_pending()
 
@@ -171,3 +178,43 @@ def test_flush_never_runs_while_the_worker_is_feeding():
     worker.stop()
 
     assert engine.overlaps == 0
+
+
+def test_pause_flush_never_overtakes_audio_the_worker_already_took():
+    # The worker took a batch but had not fed it when pause flushed; the batch
+    # then landed in the restarted stream and showed up as a partial after pause.
+    calls = []
+
+    class Engine(RecordingEngine):
+        def feed(self, samples):
+            calls.append("feed")
+            return []
+
+        def flush(self):
+            calls.append("flush")
+            return []
+
+    worker = EngineWorker(Engine(), lambda *a: None, lambda l: None)
+    took, go = threading.Event(), threading.Event()
+    real_take = worker._take_batch
+
+    def slow_take():
+        batch = real_take()
+        if batch[0]:
+            took.set()
+            go.wait(2)
+        return batch
+
+    worker._take_batch = slow_take
+    worker.push(block(30), captured_at=1.0)
+    feeder = threading.Thread(target=worker.process_pending)
+    feeder.start()
+    assert took.wait(2)
+    flusher = threading.Thread(target=worker.flush)
+    flusher.start()
+    time.sleep(0.1)
+    go.set()
+    feeder.join(2)
+    flusher.join(2)
+
+    assert calls == ["feed", "flush"]

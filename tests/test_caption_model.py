@@ -1,3 +1,5 @@
+import time
+
 from PySide6.QtCore import QCoreApplication, Qt
 
 from echoline.captions.model import CaptionModel
@@ -80,3 +82,56 @@ def test_latest_is_empty_before_any_caption():
     model = CaptionModel()
 
     assert (model.property("latestId"), model.property("latestText")) == (-1, "")
+
+
+def settled(model, row=0):
+    names = {v.data().decode(): k for k, v in model.roleNames().items()}
+    return model.data(model.index(row), names["settled"])
+
+
+def test_settled_text_is_the_words_that_survived_an_update():
+    model = CaptionModel()
+
+    model.apply([Partial(0, "It was the")])
+    assert settled(model) == ""                       # nothing confirmed yet
+
+    model.apply([Partial(0, "It was the best")])
+    assert settled(model) == "It was the"
+
+    model.apply([Partial(0, "It was the beast of")])  # "best" was corrected
+    assert settled(model) == "It was the"
+    assert model.property("latestSettled") == "It was the"
+
+    model.apply([Final(0, "It was the best of times.")])
+    assert settled(model) == "It was the best of times."
+    assert model.property("latestSettled") == "It was the best of times."
+
+
+def test_a_correction_inside_settled_words_shrinks_them():
+    model = CaptionModel()
+    model.apply([Partial(0, "I scream")])
+    model.apply([Partial(0, "I scream for")])
+    model.apply([Partial(0, "Ice cream for you")])
+
+    assert settled(model) == ""
+
+
+def test_spacing_differences_do_not_unsettle_words():
+    model = CaptionModel()
+    model.apply([Partial(0, " It was")])
+    model.apply([Partial(0, " It  was the best")])
+
+    assert settled(model) == "It was"
+    assert model.property("latestText") == "It was the best"
+
+
+def test_a_guess_that_stops_changing_settles_after_a_pause():
+    model = CaptionModel(settle_after_ms=50)
+    model.apply([Partial(0, "It was the best of times")])
+    deadline = time.monotonic() + 1
+    while settled(model) != "It was the best of times" and time.monotonic() < deadline:
+        app.processEvents()
+        time.sleep(0.01)
+
+    assert settled(model) == "It was the best of times"
+    assert model.property("latestSettled") == "It was the best of times"

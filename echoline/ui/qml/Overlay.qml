@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Window
+import "captions.js" as Captions
 
 Window {
     id: overlay
@@ -173,7 +174,8 @@ Window {
                             objectName: "captionLine"
                             property int utteranceId: model.utteranceId
                             width: captionColumn.width
-                            text: model.text
+                            text: Captions.markup(model.text, model.settled, overlay.s.unsettled_words, overlay.s.text_color)
+                            visible: text !== ""       // "hide" mode: no blank line before a word settles
                             opacity: 0
                             Component.onCompleted: opacity = Qt.binding(() => model.final ? 1.0 : 0.85)
                             Behavior on opacity { NumberAnimation { duration: 160 } }
@@ -202,6 +204,7 @@ Window {
     }
 
     component CaptionText: Text {
+        textFormat: Text.StyledText
         wrapMode: Text.Wrap
         horizontalAlignment: Text.AlignHCenter
         color: overlay.s.text_color

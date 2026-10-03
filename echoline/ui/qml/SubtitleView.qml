@@ -1,4 +1,5 @@
 import QtQuick
+import "captions.js" as Captions
 
 // Newest utterance as one block; the previous phrase fades out as the next fades in.
 Item {
@@ -11,7 +12,11 @@ Item {
     implicitHeight: lineHeight * s.line_count
     clip: true
 
+    readonly property string latestMarkup: Captions.markup(captions.latestText, captions.latestSettled,
+                                                          s.unsettled_words, s.text_color)
+
     component SubtitleText: Text {
+        textFormat: Text.StyledText
         anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
         wrapMode: Text.Wrap
         horizontalAlignment: Text.AlignHCenter
@@ -33,7 +38,7 @@ Item {
     SubtitleText {
         id: subtitleText
         objectName: "subtitleText"
-        text: captions.latestText
+        text: root.shownText
     }
 
     ParallelAnimation {
@@ -42,15 +47,16 @@ Item {
         NumberAnimation { target: subtitleText; property: "opacity"; from: 0; to: 1; duration: 200 }
     }
 
-    Connections {
-        target: captions
-        function onLatestChanged() {
-            if (captions.latestId !== root.shownId && root.shownId !== -1) {
-                outgoing.text = root.shownText
-                crossFade.restart()
-            }
-            root.shownId = captions.latestId
-            root.shownText = captions.latestText
+    // Follows caption updates and dim/hide switches alike. A new phrase with nothing
+    // to show yet ("hide" mode) keeps the old one up instead of blanking the screen.
+    onLatestMarkupChanged: {
+        if (latestMarkup === "" && captions.latestId !== shownId)
+            return
+        if (captions.latestId !== shownId && shownId !== -1) {
+            outgoing.text = shownText
+            crossFade.restart()
         }
+        shownId = captions.latestId
+        shownText = latestMarkup
     }
 }
