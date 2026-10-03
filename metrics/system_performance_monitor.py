@@ -23,12 +23,9 @@ class PerformanceMetrics:
     # Performance metrics
     cpu_usage_percent: float = 0.0
     memory_usage_mb: float = 0.0
-    audio_queue_size: int = 0
-    audio_queue_max_size: int = 0
     audio_drops: int = 0
     
     # System metrics
-    ui_fps: float = 0.0
     model_load_time: float = 0.0
     total_runtime: float = 0.0
 
@@ -43,7 +40,6 @@ class PerformanceMonitor:
         self.latency_history = deque(maxlen=max_history)
         self.cpu_history = deque(maxlen=max_history)
         self.memory_history = deque(maxlen=max_history)
-        self.fps_history = deque(maxlen=max_history)
         
         # Counters
         self.audio_drops = 0
@@ -157,15 +153,6 @@ class PerformanceMonitor:
         self.model_load_time = load_time
         self._log_event("model_loaded", {"load_time_ms": load_time * 1000})
     
-    def record_fps(self, fps: float):
-        """Record UI frame rate"""
-        self.fps_history.append(fps)
-    
-    def record_queue_size(self, current_size: int, max_size: int):
-        """Record audio queue statistics"""
-        # This can be called periodically to track queue health
-        pass
-    
     def _log_event(self, event_type: str, data: Dict[str, Any]):
         """Log a performance event"""
         event = {
@@ -181,7 +168,6 @@ class PerformanceMonitor:
         recent_latency = list(self.latency_history)[-10:]  # Last 10 samples
         recent_cpu = list(self.cpu_history)[-10:]
         recent_memory = list(self.memory_history)[-10:]
-        recent_fps = list(self.fps_history)[-10:]
         
         return PerformanceMetrics(
             audio_to_display_latency=statistics.mean([l['audio_to_display'] for l in recent_latency]) if recent_latency else 0,
@@ -196,7 +182,6 @@ class PerformanceMonitor:
             memory_usage_mb=statistics.mean(recent_memory) if recent_memory else 0,
             audio_drops=self.audio_drops,
             
-            ui_fps=statistics.mean(recent_fps) if recent_fps else 0,
             model_load_time=self.model_load_time,
             total_runtime=time.time() - self.start_time
         )
@@ -255,30 +240,3 @@ class PerformanceMonitor:
         except Exception as e:
             print(f"Error saving performance report: {e}")
             return None
-    
-    def print_live_stats(self):
-        """Print live performance statistics"""
-        metrics = self.get_current_metrics()
-        
-        print("\n" + "="*50)
-        print("ECHOLINE PERFORMANCE MONITOR")
-        print("="*50)
-        print(f"Runtime: {metrics.total_runtime:.1f}s")
-        print(f"Model Load Time: {metrics.model_load_time*1000:.1f}ms")
-        print()
-        print("LATENCY:")
-        print(f"  Audio→Display: {metrics.audio_to_display_latency:.1f}ms")
-        print(f"  Transcription:  {metrics.transcription_latency:.1f}ms")
-        print(f"  UI Update:      {metrics.ui_update_latency:.1f}ms")
-        print()
-        print("THROUGHPUT:")
-        print(f"  Words Processed: {metrics.total_words_processed}")
-        print(f"  Partial Updates: {metrics.partial_updates_count}")
-        print(f"  Final Updates:   {metrics.final_updates_count}")
-        print(f"  Audio Drops:     {metrics.audio_drops}")
-        print()
-        print("RESOURCES:")
-        print(f"  CPU Usage:    {metrics.cpu_usage_percent:.1f}%")
-        print(f"  Memory Usage: {metrics.memory_usage_mb:.1f}MB")
-        print(f"  UI FPS:       {metrics.ui_fps:.1f}")
-        print("="*50)

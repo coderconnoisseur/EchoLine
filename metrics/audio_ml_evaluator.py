@@ -7,11 +7,11 @@ uses EchoLine's transcription system to generate a hypothesis,
 and returns comprehensive ML evaluation metrics.
 
 Usage:
-    python audio_evaluator.py <audio_file> <reference_text> [options]
+    python -m metrics.audio_ml_evaluator <audio_file> <reference_text> [options]
     
 Example:
-    python audio_evaluator.py audio.wav "hello world this is a test"
-    python audio_evaluator.py audio.mp3 "the quick brown fox" --save-report
+    python -m metrics.audio_ml_evaluator audio.wav "hello world this is a test"
+    python -m metrics.audio_ml_evaluator audio.mp3 "the quick brown fox" --save-report
 """
 
 import sys
@@ -19,9 +19,7 @@ import os
 import argparse
 import json
 import time
-import wave
 import numpy as np
-from pathlib import Path
 
 # Add parent directory to path to import from transcription and metrics
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -34,15 +32,7 @@ except ImportError as e:
     print("Make sure you're running this from the EchoLine project directory")
     sys.exit(1)
 
-# Audio processing libraries
-try:
-    import librosa
-    import soundfile as sf
-    AUDIO_LIBS_AVAILABLE = True
-except ImportError:
-    print("Warning: librosa and soundfile not available. Only WAV files will be supported.")
-    print("Install with: pip install librosa soundfile")
-    AUDIO_LIBS_AVAILABLE = False
+import librosa
 
 class AudioEvaluator:
     """Comprehensive audio evaluation using EchoLine transcription system"""
@@ -67,7 +57,7 @@ class AudioEvaluator:
         if not self.speech_recognizer.model:
             print("ERROR: Failed to initialize Vosk model!")
             print("Please ensure the Vosk model is downloaded and available.")
-            print("Run: python download_vosk_model.py")
+            print("See the README for where to put the model.")
             return False
         
         if self.verbose:
@@ -90,25 +80,10 @@ class AudioEvaluator:
             print(f"ERROR: Audio file not found: {audio_file_path}")
             return None, None, None
         
-        file_extension = Path(audio_file_path).suffix.lower()
-        
         try:
-            if file_extension == '.wav':
-                # Handle WAV files directly
-                audio_data, sample_rate = self._load_wav_file(audio_file_path)
-            elif AUDIO_LIBS_AVAILABLE:
-                # Handle other formats with librosa
-                audio_data, sample_rate = librosa.load(
-                    audio_file_path, 
-                    sr=16000,  # Resample to 16kHz for Vosk
-                    mono=True
-                )
-                # Convert to int16 format expected by Vosk
-                audio_data = (audio_data * 32767).astype(np.int16)
-            else:
-                print(f"ERROR: Unsupported audio format: {file_extension}")
-                print("Install librosa and soundfile for MP3/FLAC support: pip install librosa soundfile")
-                return None, None, None
+            # librosa handles WAV/MP3/FLAC, mixes down to mono and resamples to Vosk's 16kHz
+            audio_float, sample_rate = librosa.load(audio_file_path, sr=16000, mono=True)
+            audio_data = np.clip(np.round(audio_float * 32768), -32768, 32767).astype(np.int16)
             
             duration = len(audio_data) / sample_rate
             
@@ -123,47 +98,6 @@ class AudioEvaluator:
         except Exception as e:
             print(f"ERROR: Error loading audio file: {e}")
             return None, None, None
-    
-    def _load_wav_file(self, wav_file_path):
-        """Load WAV file using wave module"""
-        with wave.open(wav_file_path, 'rb') as wav_file:
-            frames = wav_file.getnframes()
-            sample_rate = wav_file.getframerate()
-            channels = wav_file.getnchannels()
-            sample_width = wav_file.getsampwidth()
-            
-            # Read audio data
-            audio_bytes = wav_file.readframes(frames)
-            
-            # Convert to numpy array
-            if sample_width == 2:  # 16-bit
-                audio_data = np.frombuffer(audio_bytes, dtype=np.int16)
-            elif sample_width == 4:  # 32-bit
-                audio_data = np.frombuffer(audio_bytes, dtype=np.int32)
-                # Convert to 16-bit
-                audio_data = (audio_data / 65536).astype(np.int16)
-            else:
-                raise ValueError(f"Unsupported sample width: {sample_width}")
-            
-            # Convert stereo to mono if needed
-            if channels == 2:
-                audio_data = audio_data.reshape(-1, 2).mean(axis=1).astype(np.int16)
-            
-            # Resample to 16kHz if needed
-            if sample_rate != 16000:
-                if AUDIO_LIBS_AVAILABLE:
-                    audio_data = librosa.resample(
-                        audio_data.astype(np.float32), 
-                        orig_sr=sample_rate, 
-                        target_sr=16000
-                    )
-                    audio_data = (audio_data * 32767).astype(np.int16)
-                    sample_rate = 16000
-                else:
-                    print(f"WARNING: Audio sample rate is {sample_rate}Hz, but Vosk expects 16kHz")
-                    print("Results may be inaccurate. Install librosa for automatic resampling.")
-            
-            return audio_data, sample_rate
     
     def transcribe_audio(self, audio_data, audio_file_path=None):
         """
@@ -192,28 +126,20 @@ class AudioEvaluator:
         
         try:
             # Process audio in chunks (simulate real-time processing)
+            recognizer = self.speech_recognizer.recognizer
+            recognizer.SetWords(True)  # Vosk only reports per-word confidence with this on
             chunk_size = 4000  # ~250ms chunks at 16kHz
-            transcription_parts = []
+            results = []
             
             for i in range(0, len(audio_data), chunk_size):
                 chunk = audio_data[i:i + chunk_size]
-                
-                # Process chunk
-                partial_text, is_partial = self.speech_recognizer.process_audio_data(chunk)
-                
-                if partial_text and not is_partial:
-                    transcription_parts.append(partial_text)
+                if recognizer.AcceptWaveform(chunk.tobytes()):
+                    results.append(json.loads(recognizer.Result()))
+            results.append(json.loads(recognizer.FinalResult()))
             
-            # Get final result
-            if self.speech_recognizer.recognizer:
-                final_result = json.loads(self.speech_recognizer.recognizer.FinalResult())
-                final_text = final_result.get('text', '')
-                confidence = final_result.get('confidence', 0.0)
-                
-                if final_text:
-                    transcription_parts.append(final_text)
-            else:
-                confidence = 0.0
+            transcription_parts = [r['text'] for r in results if r.get('text')]
+            words = [w for r in results for w in r.get('result', [])]
+            confidence = sum(w['conf'] for w in words) / len(words) if words else 0.0
             
             # Combine all transcription parts
             full_transcription = ' '.join(transcription_parts).strip()
@@ -221,7 +147,7 @@ class AudioEvaluator:
             processing_time = (time.time() - start_time) * 1000  # Convert to ms
             
             # Mark processing complete
-            self.performance_monitor.mark_audio_processed(audio_id, confidence)
+            self.performance_monitor.mark_audio_processed(audio_id, word_count=len(words), is_partial=False)
             self.performance_monitor.mark_ui_updated(audio_id)
             
             if self.verbose:
@@ -261,9 +187,8 @@ class AudioEvaluator:
             reference_text, hypothesis_text
         )
         
-        # Add confusion data for analysis
-        if metrics.confusion_matrix:
-            self.confusion_analyzer.add_confusion_data(metrics.confusion_matrix)
+        # Feed the word alignment to the confusion analyzer
+        self.confusion_analyzer.add_operation_list(self.transcription_evaluator.last_operations)
         
         # Get performance metrics
         performance_metrics = self.performance_monitor.get_current_metrics()
@@ -392,6 +317,12 @@ class AudioEvaluator:
         except Exception as e:
             print(f"ERROR: Error generating confusion analysis: {e}")
 
+def exit_code_for_wer(wer):
+    """0: good (< 10% WER), 1: acceptable (10-30%), 2: poor (>= 30%)"""
+    if wer < 0.1:
+        return 0
+    return 1 if wer < 0.3 else 2
+
 def main():
     """Main function for command-line usage"""
     parser = argparse.ArgumentParser(
@@ -399,9 +330,9 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python audio_evaluator.py audio.wav "hello world"
-  python audio_evaluator.py audio.mp3 "the quick brown fox jumps over the lazy dog" --save-report
-  python audio_evaluator.py test.flac "artificial intelligence" --confusion-analysis --verbose
+  python -m metrics.audio_ml_evaluator audio.wav "hello world"
+  python -m metrics.audio_ml_evaluator audio.mp3 "the quick brown fox jumps over the lazy dog" --save-report
+  python -m metrics.audio_ml_evaluator test.flac "artificial intelligence" --confusion-analysis --quiet
         """
     )
     
@@ -413,18 +344,13 @@ Examples:
                         help='Generate confusion matrix analysis and visualizations')
     parser.add_argument('--output-prefix', type=str,
                         help='Prefix for output files (default: auto-generated)')
-    parser.add_argument('--verbose', action='store_true', default=True,
-                        help='Enable verbose output (default: True)')
     parser.add_argument('--quiet', action='store_true',
                         help='Disable verbose output')
     
     args = parser.parse_args()
     
-    # Handle verbose flag
-    verbose = args.verbose and not args.quiet
-    
     # Initialize evaluator
-    evaluator = AudioEvaluator(verbose=verbose)
+    evaluator = AudioEvaluator(verbose=not args.quiet)
     
     if not evaluator.speech_recognizer or not evaluator.speech_recognizer.model:
         print("ERROR: Failed to initialize EchoLine speech recognizer")
@@ -463,47 +389,10 @@ Examples:
     
     # Generate confusion analysis if requested
     if args.confusion_analysis:
-        analyzer = ConfusionMatrixAnalyzer()
-        
-        if metrics.confusion_matrix:
-            analyzer.add_confusion_data(metrics.confusion_matrix)
-            
-            # Also add operations if available
-            if hasattr(evaluator, 'last_operations'):
-                analyzer.add_operation_list(evaluator.last_operations)
-        
-        # Generate detailed report
-        report = analyzer.generate_detailed_report()
-        
-        # Save text report
-        report_file = f"confusion_analysis_report.txt"
-        with open(report_file, 'w', encoding='utf-8') as f:
-            f.write(report)
-        print(f"Confusion analysis report saved to: {report_file}")
-        
-        # Generate visualizations
-        try:
-            analyzer.generate_visualization("confusion_heatmap.png")
-            print(f"Confusion matrix heatmap saved to: confusion_heatmap.png")
-        except Exception as e:
-            print(f"WARNING: Could not generate heatmap: {e}")
-        
-        try:
-            analyzer.analyze_phonetic_similarity("phonetic_analysis.png")
-            print(f"Phonetic analysis saved to: phonetic_analysis.png")
-        except Exception as e:
-            print(f"WARNING: Could not generate phonetic analysis: {e}")
+        evaluator.generate_confusion_analysis(args.output_prefix)
     
     # Exit with appropriate code
-    wer = evaluation_results['transcription_metrics']['word_error_rate']
-    if wer == 0.0:
-        sys.exit(0)  # Perfect transcription
-    elif wer < 0.1:
-        sys.exit(0)  # Very good (< 10% error)
-    elif wer < 0.3:
-        sys.exit(1)  # Acceptable (10-30% error)
-    else:
-        sys.exit(2)  # Poor (> 30% error)
+    sys.exit(exit_code_for_wer(evaluation_results['transcription_metrics']['word_error_rate']))
 
 if __name__ == "__main__":
     main()

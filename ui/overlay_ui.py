@@ -1,7 +1,8 @@
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QScrollArea, QApplication
-from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QRect, QEasingCurve
+from PySide6.QtCore import Qt, QRect
 from PySide6.QtGui import QShortcut, QKeySequence
 
+from ui.caption_buffer import CaptionBuffer
 from ui.caption_widget import CaptionLabel
 
 class YouTubeCaptionOverlay(QWidget):
@@ -15,9 +16,7 @@ class YouTubeCaptionOverlay(QWidget):
         self.signals.update_text.connect(self._update_caption_safe)
         
         # Caption state management
-        self.current_sentence = ""  # Complete sentence being built
-        self.partial_text = ""      # Current partial word/phrase
-        self.last_final_text = ""   # Last complete sentence
+        self.captions = CaptionBuffer()
         self.caption_label = None   # Current caption label
         
         # Setup UI components
@@ -27,7 +26,7 @@ class YouTubeCaptionOverlay(QWidget):
         self._setup_shortcuts()
         
         # Initialize with a welcome message
-        self._add_caption_line("Ready for live captions...", partial=True)
+        self._add_caption_line("Ready for live captions...")
         
         # Show the overlay
         self.resize_overlay()
@@ -134,10 +133,6 @@ class YouTubeCaptionOverlay(QWidget):
         self.close_shortcut.activated.connect(self.close_app)
         self.escape_shortcut = QShortcut(QKeySequence("Escape"), self)
         self.escape_shortcut.activated.connect(self.close_app)
-
-        self.opacity_anim = QPropertyAnimation(self, b"windowOpacity")
-        self.opacity_anim.setDuration(200)
-        self.opacity_anim.setEasingCurve(QEasingCurve.InOutCubic)
     
     # Mouse event handlers for dragging
     def mousePressEvent(self, event):
@@ -172,56 +167,29 @@ class YouTubeCaptionOverlay(QWidget):
         """Update caption text with YouTube-style auto-scrolling behavior"""
         if not text.strip():
             # If empty text, show listening message
-            if not self.current_sentence and not self.partial_text:
-                self._add_caption_line("Listening for audio...", partial=True)
+            if not self.captions.text:
+                self._add_caption_line("Listening for audio...")
             return
 
         if is_partial:
-            # Partial text - update the caption label
-            self.partial_text = text
-            display_text = self.current_sentence
-            if display_text and self.partial_text:
-                display_text += " " + self.partial_text
-            elif self.partial_text:
-                display_text = self.partial_text
-
-            # Update the caption label
-            self._add_caption_line(display_text, partial=True)
+            self.captions.add_partial(text)
         else:
-            # Final text - update the caption label
-            new_sentence = text.strip()
-            if new_sentence == self.last_final_text:
-                return
+            self.captions.add_final(text)
+        self._add_caption_line(self.captions.text)
 
-            display_text = self.current_sentence + " " + new_sentence if self.current_sentence else new_sentence
-            self._add_caption_line(display_text, partial=False)
-
-            self.current_sentence = display_text
-            self.partial_text = ""
-            self.last_final_text = new_sentence
-
-    def _add_caption_line(self, text, partial=False):
+    def _add_caption_line(self, text):
         """Add or update the caption label"""
         # If we already have a caption label, update it
         if self.caption_label:
             self.caption_label.setText(text)
-            self.caption_label.is_partial = partial
             return
 
         # Create a new caption label if it doesn't exist
-        label = CaptionLabel(text, partial=partial)
+        label = CaptionLabel(text)
         
         # Insert before the stretch (so captions appear at bottom)
         self.caption_layout.insertWidget(self.caption_layout.count() - 1, label)
         self.caption_label = label
-        
-        # Force scroll to bottom after adding new content
-        QTimer.singleShot(10, self.force_scroll_to_bottom)
-
-    def force_scroll_to_bottom(self):
-        """Force scrolling to the bottom of the content"""
-        scrollbar = self.scroll_area.verticalScrollBar()
-        scrollbar.setValue(scrollbar.maximum())
 
     def auto_scroll_to_bottom(self, min_val, max_val):
         """Slot to automatically scroll to the bottom when content size changes"""
@@ -246,9 +214,6 @@ class YouTubeCaptionOverlay(QWidget):
     def close_app(self):
         """Close the application gracefully"""
         print("Closing EchoLine...")
-        # Emit a signal to notify the main app to clean up
-        if hasattr(self.signals, 'app_closing'):
-            self.signals.app_closing.emit()
-        # Quit the entire application
+        # Ends the event loop; EchoLineApp.run() cleans up once it returns
         QApplication.quit()
         self.close()

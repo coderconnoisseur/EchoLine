@@ -1,13 +1,12 @@
 from PySide6.QtWidgets import QLabel, QGraphicsDropShadowEffect
-from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QFont, QColor
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
 
 class CaptionLabel(QLabel):
     """Custom label for displaying captions with styling"""
     
-    def __init__(self, text, parent=None, partial=False):
+    def __init__(self, text, parent=None):
         super().__init__(text, parent)
-        self.is_partial = partial
         self.setup_styling()
     
     def setup_styling(self):
@@ -28,9 +27,6 @@ class CaptionLabel(QLabel):
                 margin: 2px;
             }
         """)
-        font = QFont("Arial", 24, QFont.Medium)  
-        self.setFont(font)
-        
         # Add shadow for text visibility
         shadow = QGraphicsDropShadowEffect(self)
         shadow.setBlurRadius(8)

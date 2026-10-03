@@ -1,10 +1,11 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
-from collections import defaultdict, Counter
+from collections import defaultdict
 import re
-from typing import Dict, List, Tuple, Any
+from typing import Dict, List, Tuple
 import statistics
+
+from .accuracy_evaluator import edit_distance, most_confused_pairs
 
 class ConfusionMatrixAnalyzer:
     """Analyzes confusion matrices and error patterns in transcription"""
@@ -12,7 +13,6 @@ class ConfusionMatrixAnalyzer:
     def __init__(self):
         self.confusion_data = defaultdict(lambda: defaultdict(int))
         self.word_accuracy_data = defaultdict(lambda: {'correct': 0, 'total': 0})
-        self.total_operations = []
         
     def add_confusion_data(self, confusion_matrix: Dict[str, Dict[str, int]]):
         """Add confusion matrix data for analysis"""
@@ -28,16 +28,9 @@ class ConfusionMatrixAnalyzer:
                 else:
                     # This is an error
                     self.word_accuracy_data[ref_word]['total'] += count
-                    # Also count the hypothesis word if it's not an insertion
-                    if hyp_word != '<inserted>' and ref_word != '<deleted>':
-                        if hyp_word not in self.word_accuracy_data:
-                            self.word_accuracy_data[hyp_word]['correct'] = 0
-                            self.word_accuracy_data[hyp_word]['total'] = 0
     
     def add_operation_list(self, operations: List[Tuple[str, str, str]]):
         """Add operation list from alignment for better accuracy tracking"""
-        self.total_operations.extend(operations)
-        
         # Track accuracy from operations
         for operation, ref_word, hyp_word in operations:
             if operation == 'match':
@@ -48,11 +41,13 @@ class ConfusionMatrixAnalyzer:
                 # Error with reference word
                 if ref_word:
                     self.word_accuracy_data[ref_word]['total'] += 1
+                    self.confusion_data[ref_word][hyp_word or '<deleted>'] += 1
             elif operation == 'insert':
                 # Insertion - affects hypothesis word
                 if hyp_word:
                     # Count as error for the inserted word
                     self.word_accuracy_data[hyp_word]['total'] += 1
+                    self.confusion_data['<inserted>'][hyp_word] += 1
     
     def calculate_word_accuracies(self) -> Dict[str, float]:
         """Calculate individual word accuracies"""
@@ -68,16 +63,7 @@ class ConfusionMatrixAnalyzer:
     
     def get_most_confused_pairs(self, top_k: int = 10) -> List[Tuple[str, str, int]]:
         """Get the most frequently confused word pairs"""
-        confused_pairs = []
-        
-        for ref_word, substitutions in self.confusion_data.items():
-            for hyp_word, count in substitutions.items():
-                if ref_word != hyp_word and count > 0:  # Only actual errors
-                    confused_pairs.append((ref_word, hyp_word, count))
-        
-        # Sort by frequency
-        confused_pairs.sort(key=lambda x: x[2], reverse=True)
-        return confused_pairs[:top_k]
+        return most_confused_pairs(self.confusion_data, top_k)
     
     def analyze_error_patterns(self) -> Dict[str, int]:
         """Analyze different types of errors"""
@@ -85,7 +71,6 @@ class ConfusionMatrixAnalyzer:
             'phonetic_errors': 0,
             'length_errors': 0,
             'capitalization_errors': 0,
-            'punctuation_errors': 0,
             'semantic_errors': 0
         }
         
@@ -99,8 +84,6 @@ class ConfusionMatrixAnalyzer:
                         patterns['phonetic_errors'] += count
                     elif abs(len(ref_word) - len(hyp_word)) > 2:
                         patterns['length_errors'] += count
-                    elif self._has_punctuation_difference(ref_word, hyp_word):
-                        patterns['punctuation_errors'] += count
                     else:
                         patterns['semantic_errors'] += count
         
@@ -128,36 +111,7 @@ class ConfusionMatrixAnalyzer:
             if word1_sub == word2_clean or word2_sub == word1_clean:
                 return True
         
-        # Check edit distance
-        edit_dist = self._calculate_edit_distance(word1_clean, word2_clean)
-        similarity = 1 - (edit_dist / max(len(word1_clean), len(word2_clean)))
-        return similarity > 0.7  # 70% similarity threshold
-    
-    def _has_punctuation_difference(self, word1: str, word2: str) -> bool:
-        """Check if words differ only in punctuation"""
-        clean1 = re.sub(r'[^a-zA-Z0-9]', '', word1.lower())
-        clean2 = re.sub(r'[^a-zA-Z0-9]', '', word2.lower())
-        return clean1 == clean2 and clean1 != ''
-    
-    def _calculate_edit_distance(self, s1: str, s2: str) -> int:
-        """Calculate Levenshtein edit distance"""
-        if len(s1) < len(s2):
-            return self._calculate_edit_distance(s2, s1)
-        
-        if len(s2) == 0:
-            return len(s1)
-        
-        previous_row = list(range(len(s2) + 1))
-        for i, c1 in enumerate(s1):
-            current_row = [i + 1]
-            for j, c2 in enumerate(s2):
-                insertions = previous_row[j + 1] + 1
-                deletions = current_row[j] + 1
-                substitutions = previous_row[j] + (c1 != c2)
-                current_row.append(min(insertions, deletions, substitutions))
-            previous_row = current_row
-        
-        return previous_row[-1]
+        return self._calculate_phonetic_similarity(word1, word2) > 0.7  # 70% similarity threshold
     
     def generate_detailed_report(self) -> str:
         """Generate a comprehensive analysis report"""
@@ -255,13 +209,13 @@ class ConfusionMatrixAnalyzer:
             
             # Create heatmap
             plt.figure(figsize=(12, 10))
-            sns.heatmap(matrix, 
-                       xticklabels=words, 
-                       yticklabels=words,
-                       annot=True, 
-                       fmt='g',
-                       cmap='Reds',
-                       cbar_kws={'label': 'Confusion Count'})
+            plt.imshow(matrix, cmap='Reds')
+            plt.colorbar(label='Confusion Count')
+            for (row, col), count in np.ndenumerate(matrix):
+                if count:
+                    plt.text(col, row, f"{count:g}", ha='center', va='center')
+            plt.xticks(range(len(words)), words)
+            plt.yticks(range(len(words)), words)
             
             plt.title('Word Confusion Matrix\n(Reference Words → Hypothesis Words)')
             plt.xlabel('Hypothesis Words')
@@ -339,7 +293,4 @@ class ConfusionMatrixAnalyzer:
         if not word1_clean or not word2_clean:
             return 0.0
         
-        edit_dist = self._calculate_edit_distance(word1_clean, word2_clean)
-        max_len = max(len(word1_clean), len(word2_clean))
-        
-        return 1.0 - (edit_dist / max_len)
+        return 1.0 - edit_distance(word1_clean, word2_clean) / max(len(word1_clean), len(word2_clean))

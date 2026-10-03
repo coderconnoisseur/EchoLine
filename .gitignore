@@ -47,3 +47,7 @@ overlay.py
 Syscapture.py 
 Transcription.py
 build.py
+
+# Local virtualenv and generated knowledge graph
+.venv/
+graphify-out/

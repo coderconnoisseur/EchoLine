@@ -658,9 +658,9 @@ python -c "from metrics import *; print('All components loaded successfully')"
 
 ## Requirements
 
-- **Python**: 3.7+
-- **Core Dependencies**: numpy, matplotlib, seaborn, pandas, psutil
-- **Audio Support**: librosa, soundfile (for MP3/FLAC files)
+- **Python**: 3.8+
+- **Core Dependencies**: numpy, matplotlib, psutil
+- **Audio Support**: librosa (WAV/MP3/FLAC loading and resampling)
 - **Speech Recognition**: vosk (EchoLine's transcription engine)
 
 ## Benchmarking Best Practices
@@ -958,21 +958,17 @@ def evaluate_recent_transcriptions(ground_truth_pairs):
 
 ## Requirements
 
-- Python 3.7+
+- Python 3.8+
 - numpy
 - matplotlib
-- seaborn
-- pandas
 - psutil
-- threading (built-in)
-- json (built-in)
-- time (built-in)
+- librosa
 
 ## Installation
 
 ```bash
 # Install required dependencies
-pip install numpy matplotlib seaborn pandas psutil
+pip install -r requirements.txt
 
 # The metrics package is already included in your EchoLine project
 ```
