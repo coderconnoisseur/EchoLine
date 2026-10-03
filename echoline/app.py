@@ -10,6 +10,7 @@ from .captions.model import CaptionModel
 from .pipeline.latency import LatencyTracker
 from .pipeline.worker import EngineWorker
 from .ui.overlay import OverlayStatus, load_overlay
+from .ui.blur import set_acrylic
 from .ui.placement import clamp_to_screen, snap_position
 
 
@@ -64,6 +65,15 @@ class EchoLineApp:
         self._place_window()
         self.window.xChanged.connect(self._save_position.start)
         self.window.yChanged.connect(self._save_position.start)
+
+        self._apply_blur()
+        settings_store.valuesChanged.connect(self._apply_blur)
+
+    def _apply_blur(self):
+        enabled = self.settings_store.settings.blur_behind
+        if enabled != getattr(self, "_blur_applied", None):
+            self._blur_applied = enabled
+            set_acrylic(int(self.window.winId()), enabled)
 
     def _screen_rects(self):
         primary = QGuiApplication.primaryScreen()
