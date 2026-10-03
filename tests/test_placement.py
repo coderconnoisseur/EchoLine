@@ -19,6 +19,11 @@ def test_offscreen_position_is_pulled_back_on_screen():
     assert clamp_to_screen([2500, 300], SIZE, [SCREEN]) == snap_position(SCREEN, SIZE, "bottom")
 
 
+def test_partly_offscreen_position_is_moved_fully_on_screen():
+    # e.g. the resolution was lowered: the overlay hangs 40% off the right edge.
+    assert clamp_to_screen([1520, 900], SIZE, [SCREEN]) == [1920 - 670, 900]
+
+
 def test_position_on_a_secondary_screen_is_kept():
     second = (1920, 0, 1280, 1024)
 

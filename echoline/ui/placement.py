@@ -16,6 +16,16 @@ def _visible_fraction(position, size, screen):
 
 
 def clamp_to_screen(position, size, screens):
-    if position and any(_visible_fraction(position, size, s) >= 0.6 for s in screens):
-        return list(position)
+    """Keep a saved position on the screen showing most of the overlay, moved fully inside it.
+
+    Falls back to the bottom of the primary screen when no screen shows enough of it.
+    """
+    if position:
+        best = max(screens, key=lambda s: _visible_fraction(position, size, s))
+        if _visible_fraction(position, size, best) >= 0.5:
+            sx, sy, sw, sh = best
+            w, h = size
+            x = min(max(position[0], sx), sx + sw - w)
+            y = min(max(position[1], sy), sy + sh - h)
+            return [x, y]
     return snap_position(screens[0], size, "bottom")
