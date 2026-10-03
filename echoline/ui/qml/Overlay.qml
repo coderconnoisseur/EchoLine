@@ -6,9 +6,7 @@ Window {
     id: overlay
     objectName: "overlay"
     readonly property var s: settingsStore.values
-    // Always on top until M3 adds a tray icon: a Tool window has no taskbar button,
-    // so once covered by a full-screen video it could not be brought back.
-    flags: Qt.FramelessWindowHint | Qt.Tool | Qt.WindowStaysOnTopHint
+    flags: Qt.FramelessWindowHint | Qt.Tool | (s.always_on_top ? Qt.WindowStaysOnTopHint : 0)
     color: "transparent"
     visible: true
     // Width is set imperatively so a drag-resize from the edge does not fight a binding.
@@ -145,7 +143,7 @@ Window {
                              "no-microphone": "No microphone — check Windows privacy settings",
                              "model-error": "Speech model unavailable — check your connection and restart",
                              "settings-reset": "Settings were damaged and have been reset",
-                             "lagging": "Catching up…" })[status.state] || status.state
+                             "lagging": "Falling behind — try a smaller model" })[status.state] || status.state
                 }
             }
 

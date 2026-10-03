@@ -59,6 +59,14 @@ class Controller(QObject):
     pausedChanged = Signal()
     sourceChanged = Signal()
 
+    @Slot(str)
+    def setSource(self, kind):
+        self._app.set_source(kind)
+
+    @Slot(bool)
+    def setClickThrough(self, enabled):
+        self._app.set_click_through(enabled)
+
     @Slot()
     def togglePause(self):
         self._app.set_paused(not self._app.paused)

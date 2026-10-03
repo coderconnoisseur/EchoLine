@@ -245,18 +245,16 @@ def test_newest_line_is_inside_the_window_when_height_is_capped(overlay):
     assert bottom <= window.height() + 1, (bottom, window.height())
 
 
-def test_overlay_stays_on_top_until_the_tray_exists(overlay):
-    # The overlay has no taskbar button; if it could drop behind a full-screen
-    # video before M3 adds the tray icon, users could not get it back.
+def test_always_on_top_setting_controls_the_flag(overlay):
     from PySide6.QtCore import Qt
 
     window, _, _, _ = overlay
+    assert window.flags() & Qt.WindowStaysOnTopHint
 
     window.store.setValue("always_on_top", False)
     settle()
 
-    assert window.flags() & Qt.WindowStaysOnTopHint
-
+    assert not window.flags() & Qt.WindowStaysOnTopHint
 
 def test_subtitle_cross_fades_from_the_previous_phrase(overlay):
     # The new text used to appear instantly, then blink out and back in.

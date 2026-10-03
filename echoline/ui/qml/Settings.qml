@@ -18,6 +18,33 @@ ApplicationWindow {
         Label { id: name; Layout.preferredWidth: 150 }
     }
 
+    component HotkeyButton: Button {
+        property string key
+        property bool recording: false
+        Layout.preferredWidth: 180
+        text: recording ? "Press keys…" : (win.s[key] || "None")
+        onClicked: { recording = true; forceActiveFocus() }
+        onActiveFocusChanged: if (!activeFocus) recording = false
+        Keys.onPressed: (event) => {
+            if (!recording) return
+            event.accepted = true
+            if (event.key === Qt.Key_Escape) { recording = false; return }
+            if (event.key === Qt.Key_Backspace) { settingsStore.setValue(key, ""); recording = false; return }
+            const names = []
+            if (event.modifiers & Qt.ControlModifier) names.push("Ctrl")
+            if (event.modifiers & Qt.AltModifier) names.push("Alt")
+            if (event.modifiers & Qt.ShiftModifier) names.push("Shift")
+            if (event.modifiers & Qt.MetaModifier) names.push("Win")
+            let k = ""
+            if (event.key >= Qt.Key_A && event.key <= Qt.Key_Z) k = String.fromCharCode(event.key)
+            else if (event.key >= Qt.Key_0 && event.key <= Qt.Key_9) k = String.fromCharCode(event.key)
+            else if (event.key >= Qt.Key_F1 && event.key <= Qt.Key_F12) k = "F" + (event.key - Qt.Key_F1 + 1)
+            if (k === "" || names.length === 0) return        // wait for a full combination
+            settingsStore.setValue(key, names.concat([k]).join("+"))
+            recording = false
+        }
+    }
+
     component Swatches: Row {
         id: swatches
         property string key
@@ -40,6 +67,8 @@ ApplicationWindow {
         objectName: "tabs"
         TabButton { text: "Appearance" }
         TabButton { text: "Layout" }
+        TabButton { text: "Behavior" }
+        TabButton { text: "Hotkeys" }
         TabButton { text: "About" }
     }
 
@@ -168,6 +197,67 @@ ApplicationWindow {
                 Button { text: "Center"; onClicked: controller.snap("center") }
                 Button { text: "Bottom"; onClicked: controller.snap("bottom") }
             }
+            Row2 {
+                label: "Always on top"
+                Switch {
+                    objectName: "onTopSwitch"
+                    checked: win.s.always_on_top
+                    onToggled: settingsStore.setValue("always_on_top", checked)
+                }
+            }
+            Item { Layout.fillHeight: true }
+        }
+
+        ColumnLayout {
+            spacing: 14
+            Row2 {
+                label: "Audio source"
+                ComboBox {
+                    objectName: "sourceBox"
+                    Layout.fillWidth: true
+                    textRole: "text"; valueRole: "value"
+                    model: [{ text: "System audio", value: "system" }, { text: "Microphone", value: "microphone" }]
+                    currentIndex: model.findIndex(item => item.value === win.s.audio_source)
+                    onActivated: (index) => controller.setSource(model[index].value)
+                }
+            }
+            Row2 {
+                label: "Hide after 5 s of silence"
+                Switch {
+                    objectName: "autoHideSwitch"
+                    checked: win.s.auto_hide
+                    onToggled: settingsStore.setValue("auto_hide", checked)
+                }
+            }
+            Row2 {
+                label: "Click-through"
+                Switch {
+                    objectName: "clickThroughSwitch"
+                    checked: win.s.click_through
+                    onToggled: controller.setClickThrough(checked)
+                }
+            }
+            Row2 {
+                label: "Start with Windows"
+                Switch {
+                    objectName: "autostartSwitch"
+                    checked: win.s.start_with_windows
+                    onToggled: settingsStore.setValue("start_with_windows", checked)
+                }
+            }
+            Item { Layout.fillHeight: true }
+        }
+
+        ColumnLayout {
+            spacing: 14
+            Label {
+                text: "Click a shortcut, then press the new keys. Esc cancels, Backspace turns it off."
+                wrapMode: Text.Wrap
+                Layout.fillWidth: true
+            }
+            Row2 { label: "Show / hide captions"; HotkeyButton { objectName: "hotkeyShowHide"; key: "hotkey_show_hide" } }
+            Row2 { label: "Pause / resume"; HotkeyButton { objectName: "hotkeyPause"; key: "hotkey_pause" } }
+            Row2 { label: "Click-through"; HotkeyButton { objectName: "hotkeyClickThrough"; key: "hotkey_click_through" } }
             Item { Layout.fillHeight: true }
         }
 
