@@ -256,3 +256,21 @@ def test_overlay_stays_on_top_until_the_tray_exists(overlay):
     settle()
 
     assert window.flags() & Qt.WindowStaysOnTopHint
+
+
+def test_subtitle_cross_fades_from_the_previous_phrase(overlay):
+    # The new text used to appear instantly, then blink out and back in.
+    window, captions, _, _ = overlay
+    window.store.setValue("caption_mode", "subtitle")
+    captions.apply([Final(0, "first phrase.")])
+    settle()
+
+    captions.apply([Partial(1, "second")])
+    app.processEvents()
+    outgoing = window.findChild(QObject, "subtitleOutgoing")
+    assert outgoing.property("text") == "first phrase."
+    assert outgoing.property("opacity") > 0.5           # old phrase still fading out
+    assert visible_text(window.findChild(QObject, "subtitleView")) == "second"
+
+    settle()
+    assert outgoing.property("opacity") == 0
