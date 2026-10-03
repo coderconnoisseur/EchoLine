@@ -75,7 +75,7 @@ class FakeKaldiRecognizer:
 
 @pytest.fixture
 def evaluator_with_fake_vosk(monkeypatch):
-    from transcription.speech_recognition import SpeechRecognizer
+    from echoline.engine.vosk_recognizer import SpeechRecognizer
 
     recognizer = SpeechRecognizer.__new__(SpeechRecognizer)
     recognizer.model = object()

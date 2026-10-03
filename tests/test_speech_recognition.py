@@ -1,6 +1,6 @@
 import numpy as np
 
-from transcription.speech_recognition import SpeechRecognizer
+from echoline.engine.vosk_recognizer import SpeechRecognizer
 
 
 class RecordingKaldi:
