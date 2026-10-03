@@ -357,3 +357,23 @@ def test_pause_hotkey_toggles_pause(running):
     echoline.hotkeys.trigger("pause")
 
     assert echoline.paused
+
+
+def test_click_through_makes_the_overlay_ignore_the_mouse(running):
+    echoline, _ = running
+
+    echoline.set_click_through(True)
+    assert echoline.window.flags() & Qt.WindowTransparentForInput
+    assert echoline.settings_store.settings.click_through
+    assert "Ctrl+Alt+T" in echoline.status.property("notice")
+
+    echoline.set_click_through(False)
+    assert not echoline.window.flags() & Qt.WindowTransparentForInput
+
+
+def test_click_through_hotkey_toggles_it(running):
+    echoline, _ = running
+
+    echoline.hotkeys.trigger("click_through")
+
+    assert echoline.settings_store.settings.click_through

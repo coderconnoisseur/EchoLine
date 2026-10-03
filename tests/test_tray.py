@@ -76,3 +76,13 @@ def test_source_submenu_switches_source(echoline):
 
     assert echoline.settings_store.settings.audio_source == "microphone"
     assert mic.isChecked()
+
+
+def test_click_through_can_always_be_turned_off_from_the_tray(echoline):
+    echoline.set_click_through(True)
+    item = action(echoline, "clickThrough")
+    assert item.isChecked()
+
+    item.trigger()
+
+    assert not echoline.settings_store.settings.click_through

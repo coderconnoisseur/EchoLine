@@ -129,6 +129,7 @@ class EchoLineApp:
         settings_store.valuesChanged.connect(self._apply_blur)
 
         self.window.setIcon(app_icon())
+        self.window.setFlag(Qt.WindowTransparentForInput, settings_store.settings.click_through)
         self.tray = TrayIcon(self)
         settings_store.valuesChanged.connect(self._refresh_tray)
 
@@ -148,6 +149,8 @@ class EchoLineApp:
         s = self.settings_store.settings
         self.hotkeys.register("show_hide", s.hotkey_show_hide, lambda: self.set_visible(not self.visible))
         self.hotkeys.register("pause", s.hotkey_pause, lambda: self.set_paused(not self.paused))
+        self.hotkeys.register("click_through", s.hotkey_click_through,
+                              lambda: self.set_click_through(not self.settings_store.settings.click_through))
         if self.hotkeys.failed:
             keys = {"show_hide": s.hotkey_show_hide, "pause": s.hotkey_pause,
                     "click_through": s.hotkey_click_through}
@@ -160,6 +163,16 @@ class EchoLineApp:
 
     def quit(self):
         QCoreApplication.quit()
+
+    def set_click_through(self, enabled):
+        """Let clicks pass through the captions to the window below."""
+        self.settings_store.setValue("click_through", enabled)
+        self.window.setFlag(Qt.WindowTransparentForInput, enabled)
+        if enabled:
+            key = self.settings_store.settings.hotkey_click_through
+            how = f"{key} or the tray icon" if key else "the tray icon"
+            self.status.set_notice(f"Click-through on — use {how} to turn it off")
+        self._refresh_tray()
 
     def _refresh_tray(self):
         if self.tray is not None:
