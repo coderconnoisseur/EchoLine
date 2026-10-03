@@ -245,18 +245,16 @@ def test_newest_line_is_inside_the_window_when_height_is_capped(overlay):
     assert bottom <= window.height() + 1, (bottom, window.height())
 
 
-def test_overlay_stays_on_top_until_the_tray_exists(overlay):
-    # The overlay has no taskbar button; if it could drop behind a full-screen
-    # video before M3 adds the tray icon, users could not get it back.
+def test_always_on_top_setting_controls_the_flag(overlay):
     from PySide6.QtCore import Qt
 
     window, _, _, _ = overlay
+    assert window.flags() & Qt.WindowStaysOnTopHint
 
     window.store.setValue("always_on_top", False)
     settle()
 
-    assert window.flags() & Qt.WindowStaysOnTopHint
-
+    assert not window.flags() & Qt.WindowStaysOnTopHint
 
 def test_subtitle_cross_fades_from_the_previous_phrase(overlay):
     # The new text used to appear instantly, then blink out and back in.
@@ -274,3 +272,72 @@ def test_subtitle_cross_fades_from_the_previous_phrase(overlay):
 
     settle()
     assert outgoing.property("opacity") == 0
+
+
+def test_hover_bar_starts_hidden(tmp_path):
+    from PySide6.QtGui import QCursor
+
+    # The offscreen cursor starts at (10, 10), over a window at (0, 0); move it first.
+    QCursor.setPos(1300, 600)
+    engine = QQmlApplicationEngine()
+    warnings = []
+    engine.warnings.connect(lambda items: warnings.extend(w.toString() for w in items))
+    keep = CaptionModel(), OverlayStatus(), SettingsStore(Settings(), tmp_path / "s.json")   # QML does not own these
+    window = load_overlay(engine, *keep)
+    try:
+        settle()
+        bar = window.findChild(QObject, "hoverBar")
+        assert bar is not None and bar.property("opacity") == 0
+        assert warnings == []
+    finally:
+        window.close()
+        engine.deleteLater()
+
+
+def test_hover_bar_appears_while_hovered(overlay):
+    window, _, _, _ = overlay
+    bar = window.findChild(QObject, "hoverBar")
+
+    window.findChild(QObject, "overlayHover").setProperty("forceHovered", True)
+    settle()
+
+    assert bar.property("opacity") == 1
+
+
+def test_auto_hide_fades_after_silence_and_returns_with_speech(overlay):
+    window, captions, status, _ = overlay
+    window.findChild(QObject, "overlayHover").setProperty("enabled", False)   # offscreen cursor sits on the window
+    status.set_state("listening")
+    window.setProperty("autoHideDelay", 200)
+    window.store.setValue("auto_hide", True)
+    captions.apply([Partial(0, "hello")])
+    settle(0.9)
+    panel = window.findChild(QObject, "panel")
+    assert panel.property("opacity") == 0
+
+    window.setProperty("autoHideDelay", 5000)     # don't fade again while we look
+    captions.apply([Partial(0, "hello again")])
+    settle(0.5)
+    assert panel.property("opacity") == 1
+
+
+def test_auto_hide_keeps_status_visible(overlay):
+    window, captions, status, _ = overlay
+    window.findChild(QObject, "overlayHover").setProperty("enabled", False)
+    status.set_state("no-device")
+    window.setProperty("autoHideDelay", 200)
+    window.store.setValue("auto_hide", True)
+    settle(0.9)
+
+    assert window.findChild(QObject, "panel").property("opacity") == 1
+
+
+def test_auto_hide_off_never_fades(overlay):
+    window, captions, status, _ = overlay
+    window.findChild(QObject, "overlayHover").setProperty("enabled", False)
+    status.set_state("listening")
+    window.setProperty("autoHideDelay", 200)
+    captions.apply([Partial(0, "hello")])
+    settle(0.9)
+
+    assert window.findChild(QObject, "panel").property("opacity") == 1

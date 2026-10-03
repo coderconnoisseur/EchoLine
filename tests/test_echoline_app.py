@@ -6,6 +6,7 @@ import time
 
 import numpy as np
 import pytest
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QGuiApplication
 
 from echoline.app import EchoLineApp
@@ -52,7 +53,7 @@ def wait_until(condition, timeout=3.0):
 @pytest.fixture
 def running(tmp_path):
     source = FakeSource()
-    echoline = EchoLineApp(source, EchoEngine, SettingsStore(Settings(), tmp_path / "settings.json"),
+    echoline = EchoLineApp(lambda kind: source, EchoEngine, SettingsStore(Settings(), tmp_path / "settings.json"),
                            show_latency=True)
     echoline.start()
     assert wait_until(lambda: echoline.status.property("state") == "listening")
@@ -153,7 +154,7 @@ def test_failed_model_load_is_reported(tmp_path):
     def offline_engine():
         raise ConnectionError("could not download model")
 
-    echoline = EchoLineApp(FakeSource(), offline_engine, SettingsStore(Settings(), tmp_path / "s.json"))
+    echoline = EchoLineApp(lambda kind: FakeSource(), offline_engine, SettingsStore(Settings(), tmp_path / "s.json"))
     echoline.start()
     try:
         assert wait_until(lambda: echoline.status.property("state") == "model-error")
@@ -177,7 +178,7 @@ def test_shutdown_saves_pending_settings(tmp_path):
 
     path = tmp_path / "settings.json"
     store = SettingsStore(Settings(), path, save_delay_ms=60_000)
-    echoline = EchoLineApp(FakeSource(), EchoEngine, store)
+    echoline = EchoLineApp(lambda kind: FakeSource(), EchoEngine, store)
     store.setValue("font_size", 33)
 
     echoline.shutdown()
@@ -186,7 +187,7 @@ def test_shutdown_saves_pending_settings(tmp_path):
 
 
 def test_reset_settings_are_announced(tmp_path):
-    echoline = EchoLineApp(FakeSource(), EchoEngine, SettingsStore(Settings(), tmp_path / "s.json"),
+    echoline = EchoLineApp(lambda kind: FakeSource(), EchoEngine, SettingsStore(Settings(), tmp_path / "s.json"),
                            settings_reset=True)
     echoline.start()
     try:
@@ -281,7 +282,7 @@ def test_no_qml_errors_when_python_frees_objects_after_shutdown(tmp_path):
     import shiboken6
 
     store = SettingsStore(Settings(), tmp_path / "s.json")
-    echoline = EchoLineApp(FakeSource(), EchoEngine, store)
+    echoline = EchoLineApp(lambda kind: FakeSource(), EchoEngine, store)
     echoline.open_settings()
     errors = []
     echoline.qml.warnings.connect(lambda items: errors.extend(w.toString() for w in items))
@@ -293,3 +294,142 @@ def test_no_qml_errors_when_python_frees_objects_after_shutdown(tmp_path):
     wait_until(lambda: False, timeout=0.3)
 
     assert errors == []
+
+
+def test_pause_finalizes_and_ignores_audio_until_resumed(running):
+    echoline, source = running
+    source.on_audio(np.zeros(480, np.float32), time.monotonic())
+    wait_until(lambda: echoline.captions.rowCount() == 1)
+
+    echoline.set_paused(True)
+    assert wait_until(lambda: echoline.status.property("state") == "paused")
+    assert source.stopped
+    rows = [echoline.captions.data(echoline.captions.index(i), Qt.UserRole + 3)
+            for i in range(echoline.captions.rowCount())]
+    assert rows[-1] is True                      # the paused partial became final
+
+    echoline.set_paused(False)
+    assert wait_until(lambda: echoline.status.property("state") == "listening")
+
+
+def test_switching_source_restarts_capture_and_remembers_it(tmp_path):
+    started = []
+
+    class Recording(FakeSource):
+        def __init__(self, kind):
+            self.kind = kind
+
+        def start(self, on_audio, on_status):
+            started.append(self.kind)
+            super().start(on_audio, on_status)
+
+    store = SettingsStore(Settings(), tmp_path / "s.json")
+    echoline = EchoLineApp(Recording, EchoEngine, store)
+    echoline.start()
+    try:
+        assert wait_until(lambda: started == ["system"])
+        echoline.set_source("microphone")
+        assert started == ["system", "microphone"]
+        assert store.settings.audio_source == "microphone"
+    finally:
+        echoline.shutdown()
+
+
+def test_hotkey_taken_by_another_app_is_announced(tmp_path):
+    # Real RegisterHotKey: the combination is already held when the app starts.
+    import ctypes
+
+    user32 = ctypes.windll.user32
+    assert user32.RegisterHotKey(None, 99, 0x2 | 0x1 | 0x4 | 0x4000, 0x7B)   # Ctrl+Alt+Shift+F12
+    try:
+        settings = Settings(hotkey_pause="Ctrl+Alt+Shift+F12")
+        echoline = EchoLineApp(lambda kind: FakeSource(), EchoEngine, SettingsStore(settings, tmp_path / "s.json"))
+        try:
+            assert "Ctrl+Alt+Shift+F12" in echoline.status.property("notice")
+        finally:
+            echoline.shutdown()
+    finally:
+        user32.UnregisterHotKey(None, 99)
+
+
+def test_pause_hotkey_toggles_pause(running):
+    echoline, _ = running
+    echoline.hotkeys.trigger("pause")
+
+    assert echoline.paused
+
+
+def test_click_through_makes_the_overlay_ignore_the_mouse(running):
+    echoline, _ = running
+
+    echoline.set_click_through(True)
+    assert echoline.window.flags() & Qt.WindowTransparentForInput
+    assert echoline.settings_store.settings.click_through
+    assert "Ctrl+Alt+T" in echoline.status.property("notice")
+
+    echoline.set_click_through(False)
+    assert not echoline.window.flags() & Qt.WindowTransparentForInput
+
+
+def test_click_through_hotkey_toggles_it(running):
+    echoline, _ = running
+
+    echoline.hotkeys.trigger("click_through")
+
+    assert echoline.settings_store.settings.click_through
+
+
+def test_resizing_the_window_updates_width_percent(running):
+    echoline, _ = running
+    screen_width = echoline.window.screen().geometry().width()
+
+    echoline.window.setWidth(int(screen_width * 0.5))      # as a system resize would
+
+    assert wait_until(lambda: echoline.settings_store.settings.width_percent == 50, timeout=2)
+
+
+def test_start_with_windows_follows_the_setting(running, monkeypatch):
+    echoline, _ = running
+    calls = []
+    monkeypatch.setattr("echoline.app.set_start_with_windows", calls.append)
+
+    echoline.settings_store.setValue("start_with_windows", True)
+    echoline.settings_store.setValue("font_size", 30)          # unrelated change: no extra call
+    echoline.settings_store.setValue("start_with_windows", False)
+
+    assert calls == [True, False]
+
+
+def test_click_through_survives_unrelated_setting_changes(running):
+    # The QML flags binding re-ran on every settings change and dropped the flag.
+    echoline, _ = running
+    echoline.set_click_through(True)
+
+    echoline.settings_store.setValue("font_size", 30)
+    wait_until(lambda: False, timeout=0.2)
+
+    assert echoline.window.flags() & Qt.WindowTransparentForInput
+
+
+def test_settings_changes_do_not_pile_up_window_connections(running):
+    # The blur's width/height hooks had moved into _hotkeys_changed, so every
+    # settings change connected them again.
+    echoline, _ = running
+    signal = "2widthChanged(int)"
+    before = echoline.window.receivers(signal)
+
+    for size in range(20, 25):
+        echoline.settings_store.setValue("font_size", size)
+
+    assert echoline.window.receivers(signal) == before
+
+
+def test_click_through_saved_on_is_announced_at_startup(tmp_path):
+    # Starting with click-through on gave no hint why the captions could not be
+    # dragged or hovered.
+    store = SettingsStore(Settings(click_through=True), tmp_path / "s.json")
+    echoline = EchoLineApp(lambda kind: FakeSource(), EchoEngine, store)
+    try:
+        assert "Click-through on" in echoline.status.property("notice")
+    finally:
+        echoline.shutdown()

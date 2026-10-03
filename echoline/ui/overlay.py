@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import shiboken6
-from PySide6.QtCore import Property, QObject, QUrl, Signal
+from PySide6.QtCore import Property, QObject, QTimer, QUrl, Signal
 from PySide6.QtQuick import QQuickWindow
 
 QML_DIR = Path(__file__).parent / "qml"
@@ -11,12 +11,29 @@ class OverlayStatus(QObject):
     stateChanged = Signal()
     latencyChanged = Signal()
     showLatencyChanged = Signal()
+    noticeChanged = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._state = "loading"
         self._latency = ""
         self._show_latency = False
+        self._notice = ""
+        self._notice_timer = QTimer(self, singleShot=True)
+        self._notice_timer.timeout.connect(lambda: self._set_notice_text(""))
+
+    def _get_notice(self):
+        return self._notice
+
+    def _set_notice_text(self, text):
+        if text != self._notice:
+            self._notice = text
+            self.noticeChanged.emit()
+
+    def set_notice(self, text, ms=6000):
+        """Show a one-off message in the status pill for `ms` milliseconds."""
+        self._set_notice_text(text)
+        self._notice_timer.start(ms)
 
     def _get_state(self):
         return self._state
@@ -45,6 +62,7 @@ class OverlayStatus(QObject):
     state = Property(str, _get_state, notify=stateChanged)
     latency = Property(str, _get_latency, notify=latencyChanged)
     showLatency = Property(bool, _get_show_latency, notify=showLatencyChanged)
+    notice = Property(str, _get_notice, notify=noticeChanged)
 
 
 def load_overlay(engine, captions, status, settings_store, controller=None):

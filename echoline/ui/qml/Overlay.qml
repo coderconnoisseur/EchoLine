@@ -6,12 +6,23 @@ Window {
     id: overlay
     objectName: "overlay"
     readonly property var s: settingsStore.values
-    // Always on top until M3 adds a tray icon: a Tool window has no taskbar button,
-    // so once covered by a full-screen video it could not be brought back.
-    flags: Qt.FramelessWindowHint | Qt.Tool | Qt.WindowStaysOnTopHint
+    // All flags live in this one binding; setting any of them from Python would be
+    // undone the next time a setting changes and this re-evaluates.
+    flags: Qt.FramelessWindowHint | Qt.Tool | (s.always_on_top ? Qt.WindowStaysOnTopHint : 0)
+           | (s.click_through ? Qt.WindowTransparentForInput : 0)
     color: "transparent"
     visible: true
-    width: Screen.width * s.width_percent / 100
+    // Width is set imperatively so a drag-resize from the edge does not fight a binding.
+    // Only when width_percent itself changes, or other setting changes would undo a resize.
+    property int appliedPercent: -1
+    function applyWidth() {
+        if (s.width_percent !== appliedPercent) {
+            appliedPercent = s.width_percent
+            width = Screen.width * s.width_percent / 100
+        }
+    }
+    Component.onCompleted: applyWidth()
+    Connections { target: settingsStore; function onValuesChanged() { overlay.applyWidth() } }
     height: Math.min(panel.implicitHeight, maxHeight)
 
     readonly property real lineHeight: metrics.height * 1.15
@@ -30,6 +41,20 @@ Window {
         font.weight: overlay.s.font_weight
     }
 
+    property int autoHideDelay: 5000
+    property bool quiet: false
+    readonly property bool attention: status.state !== "listening" || status.notice !== ""
+    Timer {
+        id: quietTimer
+        interval: overlay.autoHideDelay
+        running: overlay.s.auto_hide
+        onTriggered: overlay.quiet = true
+    }
+    Connections {
+        target: captions
+        function onLatestChanged() { overlay.quiet = false; quietTimer.restart() }
+    }
+
     Shortcut { sequences: ["Ctrl+Q", "Escape"]; onActivated: Qt.quit() }
     Shortcut { sequence: "Ctrl+,"; onActivated: controller.openSettings() }
 
@@ -40,6 +65,10 @@ Window {
         implicitHeight: content.implicitHeight + 24
         radius: overlay.s.corner_radius
         color: Qt.alpha(overlay.s.background_color, overlay.s.background_opacity)
+        // Auto-hide: fade out after silence, but never over a status message or while hovered.
+        readonly property bool faded: overlay.s.auto_hide && overlay.quiet && !overlay.attention && !overlayHover.active
+        opacity: faded ? 0 : 1
+        Behavior on opacity { NumberAnimation { duration: panel.faded ? 400 : 150 } }
 
         DragHandler {
             target: null
@@ -50,6 +79,38 @@ Window {
             }
         }
 
+        HoverHandler {
+            id: overlayHover
+            objectName: "overlayHover"
+            property bool forceHovered: false        // for tests
+            readonly property bool active: hovered || forceHovered
+            onActiveChanged: if (!active) hoverGrace.restart()
+        }
+        Timer { id: hoverGrace; interval: 600 }
+
+        HoverBar {
+            anchors { top: parent.top; right: parent.right; margins: 6 }
+            z: 2
+            opacity: overlayHover.active || hoverGrace.running ? 1 : 0
+            visible: opacity > 0
+            Behavior on opacity { NumberAnimation { duration: 200 } }
+        }
+
+        component ResizeEdge: MouseArea {
+            property int edge
+            width: 8
+            anchors { top: parent.top; bottom: parent.bottom }
+            cursorShape: Qt.SizeHorCursor
+            visible: overlayHover.active
+            onPressed: {
+                if (controller)
+                    controller.dragStarted()     // a resized overlay is no longer snapped
+                overlay.startSystemResize(edge)
+            }
+        }
+        ResizeEdge { anchors.left: parent.left; edge: Qt.LeftEdge }
+        ResizeEdge { anchors.right: parent.right; edge: Qt.RightEdge }
+
         TapHandler {
             acceptedButtons: Qt.RightButton
             onTapped: contextMenu.popup()
@@ -57,6 +118,7 @@ Window {
         Menu {
             id: contextMenu
             MenuItem { text: "Settings…"; onTriggered: controller.openSettings() }
+            MenuItem { text: "Hide captions"; onTriggered: controller.hide() }
             MenuItem { text: "Quit"; onTriggered: controller.quit() }
         }
 
@@ -69,9 +131,9 @@ Window {
             Rectangle {
                 id: statusPill
                 objectName: "statusPill"
-                visible: status.state !== "listening"
+                visible: status.state !== "listening" || status.notice !== ""
                 radius: height / 2
-                color: status.state === "no-device" || status.state === "model-error" ? "#b3261e" : "#5a5a5a"
+                color: ["no-device", "no-microphone", "model-error"].indexOf(status.state) >= 0 ? "#b3261e" : "#5a5a5a"
                 width: statusText.implicitWidth + 20
                 height: statusText.implicitHeight + 6
                 anchors.horizontalCenter: parent.horizontalCenter
@@ -80,10 +142,11 @@ Window {
                     anchors.centerIn: parent
                     color: "white"
                     font.pixelSize: 13
-                    text: ({ "loading": "Loading speech model…", "no-device": "No audio device",
+                    text: status.notice !== "" ? status.notice : ({ "loading": "Loading speech model…", "no-device": "No audio device", "paused": "Paused",
+                             "no-microphone": "No microphone — check Windows privacy settings",
                              "model-error": "Speech model unavailable — check your connection and restart",
                              "settings-reset": "Settings were damaged and have been reset",
-                             "lagging": "Catching up…" })[status.state] || status.state
+                             "lagging": "Falling behind — try a smaller model" })[status.state] || status.state
                 }
             }
 

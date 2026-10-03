@@ -79,3 +79,21 @@ def test_unsavable_backup_does_not_stop_startup(tmp_path, monkeypatch):
     monkeypatch.setattr("echoline.settings.model.os.replace", locked)
 
     assert load_settings(path) == (Settings(), True)
+
+
+def test_control_settings_have_defaults():
+    s = Settings()
+
+    assert (s.audio_source, s.auto_hide, s.click_through, s.start_with_windows) == ("system", False, False, False)
+    assert (s.hotkey_show_hide, s.hotkey_pause, s.hotkey_click_through) == ("Ctrl+Alt+C", "Ctrl+Alt+P", "Ctrl+Alt+T")
+
+
+def test_control_settings_are_validated():
+    s = validate({"audio_source": "line-in", "auto_hide": "yes", "hotkey_pause": "Ctrl+Alt+<script>",
+                  "hotkey_show_hide": "", "hotkey_click_through": "Ctrl+Shift+F9"})
+
+    assert s.audio_source == "system"
+    assert s.auto_hide is False
+    assert s.hotkey_pause == "Ctrl+Alt+P"
+    assert s.hotkey_show_hide == ""                      # disabled is allowed
+    assert s.hotkey_click_through == "Ctrl+Shift+F9"

@@ -21,6 +21,7 @@ class EngineWorker:
         self._last_drop = None
         self._clock = clock
         self._lock = threading.Lock()
+        self._engine_lock = threading.Lock()     # the engine is used from one thread at a time
         self._wakeup = threading.Event()
         self._running = False
         self._thread = None
@@ -58,12 +59,21 @@ class EngineWorker:
         self._set_lagging(self._last_drop is not None and now - self._last_drop < self._lagging_hold)
         for samples, captured_at in batch:
             try:
-                events = self._engine.feed(samples)
+                with self._engine_lock:
+                    events = self._engine.feed(samples)
             except Exception:
                 traceback.print_exc()
                 continue
             if events:
                 self._on_events(events, captured_at)
+
+    def flush(self):
+        """Finish the current utterance (e.g. on pause) and keep running."""
+        self.process_pending()
+        with self._engine_lock:
+            finals = self._engine.flush()
+        if finals:
+            self._on_events(finals, None)
 
     def _run(self):
         while self._running:
@@ -82,6 +92,7 @@ class EngineWorker:
         if self._thread is not None:
             self._thread.join(timeout=5)
         self.process_pending()
-        finals = self._engine.flush()
+        with self._engine_lock:
+            finals = self._engine.flush()
         if finals:
             self._on_events(finals, None)

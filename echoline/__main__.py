@@ -6,7 +6,7 @@ from .engine.moonshine_engine import preload_native_library
 
 preload_native_library()
 
-from PySide6.QtGui import QGuiApplication  # noqa: E402
+from PySide6.QtWidgets import QApplication  # noqa: E402
 
 DEFAULT_MODEL = "tiny"   # from docs/benchmarks/2026-10-engine-bench.md
 
@@ -17,7 +17,8 @@ def main(argv=None):
     parser.add_argument("--show-latency", action="store_true", help="show p50/p95 caption latency")
     args = parser.parse_args(argv)
 
-    qt_app = QGuiApplication(sys.argv[:1])
+    qt_app = QApplication(sys.argv[:1])
+    qt_app.setQuitOnLastWindowClosed(False)   # hiding captions or closing settings must not quit
     qt_app.setApplicationName("EchoLine")
 
     from .ui.style import use_fluent_style
@@ -36,7 +37,12 @@ def main(argv=None):
 
     arch = {"tiny": ModelArch.TINY_STREAMING, "small": ModelArch.SMALL_STREAMING,
             "medium": ModelArch.MEDIUM_STREAMING}[args.model]
-    echoline = EchoLineApp(LoopbackSource(), lambda: MoonshineEngine.load(arch), store,
+    from .audio.microphone import MicrophoneSource
+
+    def make_source(kind):
+        return MicrophoneSource() if kind == "microphone" else LoopbackSource()
+
+    echoline = EchoLineApp(make_source, lambda: MoonshineEngine.load(arch), store,
                            show_latency=args.show_latency, settings_reset=was_reset)
     echoline.start()
     try:

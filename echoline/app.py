@@ -8,10 +8,14 @@ from PySide6.QtGui import QFontDatabase, QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickWindow
 
+from .autostart import set_start_with_windows
 from .captions.model import CaptionModel
+from .hotkeys import HotkeyManager
 from .pipeline.latency import LatencyTracker
 from .pipeline.worker import EngineWorker
 from .ui.fonts import caption_fonts
+from .ui.icon import app_icon
+from .ui.tray import TrayIcon
 from .ui.overlay import QML_DIR, OverlayStatus, load_overlay
 from .ui.blur import set_blur
 from .ui.placement import clamp_to_screen, snap_position
@@ -46,7 +50,40 @@ class Controller(QObject):
 
     @Slot()
     def quit(self):
-        QCoreApplication.quit()
+        self._app.quit()
+
+    @Slot()
+    def hide(self):
+        self._app.set_visible(False)
+
+    pausedChanged = Signal()
+    sourceChanged = Signal()
+
+    @Slot(str)
+    def setSource(self, kind):
+        self._app.set_source(kind)
+
+    @Slot(bool)
+    def setClickThrough(self, enabled):
+        self._app.set_click_through(enabled)
+
+    @Slot()
+    def togglePause(self):
+        self._app.set_paused(not self._app.paused)
+
+    @Slot()
+    def toggleSource(self):
+        current = self._app.settings_store.settings.audio_source
+        self._app.set_source("microphone" if current == "system" else "system")
+
+    def _get_paused(self):
+        return self._app.paused
+
+    def _get_source_name(self):
+        return self._app.source.name
+
+    paused = Property(bool, _get_paused, notify=pausedChanged)
+    sourceName = Property(str, _get_source_name, notify=sourceChanged)
 
     def _get_fonts(self):
         return caption_fonts(QFontDatabase.families())
@@ -55,8 +92,12 @@ class Controller(QObject):
 
 
 class EchoLineApp:
-    def __init__(self, source, engine_factory, settings_store, show_latency=False, settings_reset=False):
-        self.source = source
+    def __init__(self, source_factory, engine_factory, settings_store, show_latency=False, settings_reset=False):
+        self.source_factory = source_factory
+        self.source = source_factory(settings_store.settings.audio_source)
+        self.paused = False
+        self.visible = True
+        self.tray = None
         self.engine_factory = engine_factory
         self.captions = CaptionModel()
         self.status = OverlayStatus()
@@ -85,6 +126,9 @@ class EchoLineApp:
         self._save_position = QTimer(singleShot=True, interval=500)
         self._save_position.timeout.connect(
             lambda: self.settings_store.setValue("position", [self.window.x(), self.window.y()]))
+        self._save_width = QTimer(singleShot=True, interval=500)
+        self._save_width.timeout.connect(self._store_width)
+        self.window.widthChanged.connect(self._save_width.start)
         self._anchor = None          # "top" | "center" | "bottom" after a snap, until dragged
         self._place_window()
         self.window.widthChanged.connect(self._keep_anchor)
@@ -98,6 +142,74 @@ class EchoLineApp:
         self.window.widthChanged.connect(self._apply_blur)
         self.window.heightChanged.connect(self._apply_blur)
 
+        self._autostart_applied = settings_store.settings.start_with_windows
+        settings_store.valuesChanged.connect(self._apply_autostart)
+        self.window.setIcon(app_icon())
+        if settings_store.settings.click_through:
+            self._announce_click_through()
+        self.tray = TrayIcon(self)
+        settings_store.valuesChanged.connect(self._refresh_tray)
+
+        # Thread-level hotkeys (no window): WM_HOTKEY arrives in this thread's queue.
+        self.hotkeys = HotkeyManager(hwnd=None)
+        QCoreApplication.instance().installNativeEventFilter(self.hotkeys)
+        self._register_hotkeys()
+        settings_store.valuesChanged.connect(self._hotkeys_changed)
+
+    def _hotkey_texts(self):
+        s = self.settings_store.settings
+        return (s.hotkey_show_hide, s.hotkey_pause, s.hotkey_click_through)
+
+    def _register_hotkeys(self):
+        self._registered_hotkeys = self._hotkey_texts()
+        self.hotkeys.unregister_all()
+        s = self.settings_store.settings
+        self.hotkeys.register("show_hide", s.hotkey_show_hide, lambda: self.set_visible(not self.visible))
+        self.hotkeys.register("pause", s.hotkey_pause, lambda: self.set_paused(not self.paused))
+        self.hotkeys.register("click_through", s.hotkey_click_through,
+                              lambda: self.set_click_through(not self.settings_store.settings.click_through))
+        if self.hotkeys.failed:
+            keys = {"show_hide": s.hotkey_show_hide, "pause": s.hotkey_pause,
+                    "click_through": s.hotkey_click_through}
+            self.status.set_notice(f"Hotkey {keys[self.hotkeys.failed[0]]} is used by another app")
+
+    def set_visible(self, visible):
+        self.visible = visible
+        self.window.setVisible(visible)
+        self._refresh_tray()
+
+    def quit(self):
+        QCoreApplication.quit()
+
+    def _apply_autostart(self):
+        wanted = self.settings_store.settings.start_with_windows
+        if wanted != self._autostart_applied:
+            self._autostart_applied = wanted
+            try:
+                set_start_with_windows(wanted)
+            except OSError:
+                self.status.set_notice("Could not change start with Windows")
+
+    def set_click_through(self, enabled):
+        """Let clicks pass through the captions to the window below."""
+        self.settings_store.setValue("click_through", enabled)      # the overlay's flags follow it
+        if enabled:
+            self._announce_click_through()
+        self._refresh_tray()
+
+    def _announce_click_through(self):
+        key = self.settings_store.settings.hotkey_click_through
+        how = f"{key} or the tray icon" if key else "the tray icon"
+        self.status.set_notice(f"Click-through on — use {how} to turn it off")
+
+    def _refresh_tray(self):
+        if self.tray is not None:
+            self.tray.refresh()
+
+    def _hotkeys_changed(self):
+        if self._hotkey_texts() != self._registered_hotkeys:
+            self._register_hotkeys()
+
     def _apply_blur(self):
         settings = self.settings_store.settings
         scale = self.window.devicePixelRatio()
@@ -110,6 +222,11 @@ class EchoLineApp:
                 set_blur(int(self.window.winId()), settings.blur_behind,
                          size, round(settings.corner_radius * scale))
             self._blur_applied = state
+
+    def _store_width(self):
+        # Widths set from the setting round back to the same percent, so this does not loop.
+        percent = round(self.window.width() * 100 / self.window.screen().geometry().width())
+        self.settings_store.setValue("width_percent", percent)
 
     def _screen_rects(self):
         primary = QGuiApplication.primaryScreen()
@@ -162,11 +279,43 @@ class EchoLineApp:
             on_events=lambda events, captured_at: self.bridge.events.emit(events, captured_at),
             on_lagging=lambda lagging: self.bridge.status.emit("lagging" if lagging else "caught-up"))
         self.worker.start()
+        self._start_source()
+
+    def _start_source(self):
         self.source.start(self.worker.push, self.bridge.status.emit)
 
+    def set_paused(self, paused):
+        if paused == self.paused or self.worker is None:
+            self._refresh_tray()     # undo a tray checkbox toggled before the model was ready
+            return
+        self.paused = paused
+        if paused:
+            self.source.stop()
+            self.worker.flush()
+            self.status.set_state("paused")
+        else:
+            self._source_state = "listening"
+            self.status.set_state("listening")
+            self._start_source()
+        self.controller.pausedChanged.emit()
+        self._refresh_tray()
+
+    def set_source(self, kind):
+        if kind == self.settings_store.settings.audio_source:
+            return
+        self.settings_store.setValue("audio_source", kind)
+        self.source.stop()
+        self.source = self.source_factory(kind)
+        if self.worker is not None and not self.paused:
+            self._start_source()
+        self.controller.sourceChanged.emit()
+        self._refresh_tray()
+
     def _on_status(self, state):
-        if state in ("listening", "no-device"):
+        if state in ("listening", "no-device", "no-microphone"):
             self._source_state = state
+        if self.paused and state != "model-error":
+            return      # a late source status must not hide "Paused"
         if self._notice_active:
             return      # keep the notice up; _end_notice shows the latest state
         self.status.set_state(self._source_state if state == "caught-up" else state)
@@ -208,6 +357,10 @@ class EchoLineApp:
         if self._closed:
             return
         self._closed = True
+        self._save_width.stop()
+        self.hotkeys.unregister_all()
+        QCoreApplication.instance().removeNativeEventFilter(self.hotkeys)
+        self.tray.hide()
         self._save_position.stop()
         self.settings_store.setValue("position", [self.window.x(), self.window.y()])
         self.settings_store.save_now()
