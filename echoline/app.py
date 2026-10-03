@@ -55,7 +55,7 @@ class Controller(QObject):
 
     @Slot()
     def hide(self):
-        self._app.set_visible(False)
+        self._app.hide_from_overlay()
 
     pausedChanged = Signal()
     sourceChanged = Signal()
@@ -185,6 +185,14 @@ class EchoLineApp:
         self.window.setVisible(visible)
         self._refresh_tray()
 
+    def hide_from_overlay(self):
+        """The overlay's own hide button: the first time, say where EchoLine went."""
+        self.set_visible(False)
+        if not self.settings_store.settings.told_about_tray:
+            self.settings_store.setValue("told_about_tray", True)
+            self.tray.notify("EchoLine is still running",
+                             "Bring captions back from the tray icon. Quit EchoLine from its menu.")
+
     def quit(self):
         QCoreApplication.quit()
 
@@ -206,8 +214,8 @@ class EchoLineApp:
 
     def _announce_click_through(self):
         key = self.settings_store.settings.hotkey_click_through
-        how = f"{key} or the tray icon" if key else "the tray icon"
-        self.status.set_notice(f"Click-through on — use {how} to turn it off")
+        how = f"click the tray icon or press {key}" if key else "click the tray icon"
+        self.status.set_notice(f"Click-through on — {how} to turn it off")
 
     def _refresh_tray(self):
         if self.tray is not None:

@@ -102,3 +102,30 @@ def test_pause_before_the_model_loads_does_not_leave_the_tray_wrong(tmp_path):
         assert not action(instance, "pause").isChecked()
     finally:
         instance.shutdown()
+
+
+def test_first_hide_from_the_overlay_says_the_app_keeps_running(echoline):
+    told = []
+    echoline.tray.notify = lambda title, text: told.append(title)
+
+    echoline.controller.hide()
+    echoline.set_visible(True)
+    echoline.controller.hide()
+
+    assert not echoline.window.isVisible()
+    assert told == ["EchoLine is still running"]               # once, ever
+    assert echoline.settings_store.settings.told_about_tray is True
+
+
+def test_tray_click_turns_click_through_off_instead_of_hiding(echoline):
+    from PySide6.QtWidgets import QSystemTrayIcon
+
+    echoline.set_click_through(True)
+    assert "click the tray icon" in echoline.status.property("notice")
+    echoline.tray._activated(QSystemTrayIcon.Trigger)
+
+    assert not echoline.settings_store.settings.click_through
+    assert echoline.window.isVisible()
+
+    echoline.tray._activated(QSystemTrayIcon.Trigger)          # back to show/hide
+    assert not echoline.window.isVisible()

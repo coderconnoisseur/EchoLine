@@ -40,7 +40,7 @@ Row {
     }
     BarButton {
         objectName: "hideButton"
-        glyph: ""; tip: "Hide captions (restore from the tray)"
+        glyph: ""; tip: "Hide captions (EchoLine keeps running in the tray)"
         onClicked: if (controller) controller.hide()
     }
 }

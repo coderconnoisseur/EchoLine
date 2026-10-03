@@ -44,8 +44,15 @@ class TrayIcon:
             self.icon.show()
 
     def _activated(self, reason):
-        if reason == QSystemTrayIcon.Trigger:
+        if reason != QSystemTrayIcon.Trigger:
+            return
+        if self.app.settings_store.settings.click_through:
+            self.app.set_click_through(False)    # the quickest way out of click-through
+        else:
             self.app.set_visible(not self.app.visible)
+
+    def notify(self, title, text):
+        self.icon.showMessage(title, text, QSystemTrayIcon.Information, 8000)
 
     def refresh(self):
         self.show_hide.setText("Hide captions" if self.app.visible else "Show captions")

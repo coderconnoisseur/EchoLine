@@ -37,6 +37,7 @@ class Settings:
     hotkey_click_through: str = "Ctrl+Alt+Shift+T"
     model: str = ""            # "" until first-run setup picks one
     onboarded: bool = False
+    told_about_tray: bool = False   # shown the "still running in the tray" tip
 
 
 RANGES = {"font_size": (14, 64), "line_count": (1, 3), "background_opacity": (0.0, 1.0),
