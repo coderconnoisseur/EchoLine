@@ -36,6 +36,7 @@ class HotkeyManager(QAbstractNativeEventFilter):
         self._hwnd = hwnd
         self._user32 = user32 or ctypes.windll.user32
         self._callbacks = {}      # id -> callback
+        self.registered = {}      # name -> id
         self._next_id = 1
         self.failed = []
 
@@ -49,13 +50,19 @@ class HotkeyManager(QAbstractNativeEventFilter):
             self.failed.append(name)
             return False
         self._callbacks[hotkey_id] = callback
+        self.registered[name] = hotkey_id
         return True
 
     def unregister_all(self):
         for hotkey_id in list(self._callbacks):
             self._user32.UnregisterHotKey(self._hwnd, hotkey_id)
         self._callbacks.clear()
+        self.registered.clear()
         self.failed = []
+
+    def trigger(self, name):
+        """Run a registered hotkey's action as if it had been pressed."""
+        self._callbacks[self.registered[name]]()
 
     def nativeEventFilter(self, event_type, message):
         msg = wintypes.MSG.from_address(int(message))

@@ -354,8 +354,6 @@ def test_hotkey_taken_by_another_app_is_announced(tmp_path):
 
 def test_pause_hotkey_toggles_pause(running):
     echoline, _ = running
-    callback = next(iter(echoline.hotkeys._callbacks.values()))
-
-    callback()
+    echoline.hotkeys.trigger("pause")
 
     assert echoline.paused

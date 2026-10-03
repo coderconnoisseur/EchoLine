@@ -57,6 +57,7 @@ Window {
         Menu {
             id: contextMenu
             MenuItem { text: "Settings…"; onTriggered: controller.openSettings() }
+            MenuItem { text: "Hide captions"; onTriggered: controller.hide() }
             MenuItem { text: "Quit"; onTriggered: controller.quit() }
         }
 

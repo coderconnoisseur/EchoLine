@@ -13,6 +13,8 @@ from .hotkeys import HotkeyManager
 from .pipeline.latency import LatencyTracker
 from .pipeline.worker import EngineWorker
 from .ui.fonts import caption_fonts
+from .ui.icon import app_icon
+from .ui.tray import TrayIcon
 from .ui.overlay import QML_DIR, OverlayStatus, load_overlay
 from .ui.blur import set_blur
 from .ui.placement import clamp_to_screen, snap_position
@@ -47,7 +49,11 @@ class Controller(QObject):
 
     @Slot()
     def quit(self):
-        QCoreApplication.quit()
+        self._app.quit()
+
+    @Slot()
+    def hide(self):
+        self._app.set_visible(False)
 
     pausedChanged = Signal()
     sourceChanged = Signal()
@@ -81,6 +87,8 @@ class EchoLineApp:
         self.source_factory = source_factory
         self.source = source_factory(settings_store.settings.audio_source)
         self.paused = False
+        self.visible = True
+        self.tray = None
         self.engine_factory = engine_factory
         self.captions = CaptionModel()
         self.status = OverlayStatus()
@@ -120,6 +128,10 @@ class EchoLineApp:
         self._apply_blur()
         settings_store.valuesChanged.connect(self._apply_blur)
 
+        self.window.setIcon(app_icon())
+        self.tray = TrayIcon(self)
+        settings_store.valuesChanged.connect(self._refresh_tray)
+
         # Thread-level hotkeys (no window): WM_HOTKEY arrives in this thread's queue.
         self.hotkeys = HotkeyManager(hwnd=None)
         QCoreApplication.instance().installNativeEventFilter(self.hotkeys)
@@ -134,11 +146,24 @@ class EchoLineApp:
         self._registered_hotkeys = self._hotkey_texts()
         self.hotkeys.unregister_all()
         s = self.settings_store.settings
+        self.hotkeys.register("show_hide", s.hotkey_show_hide, lambda: self.set_visible(not self.visible))
         self.hotkeys.register("pause", s.hotkey_pause, lambda: self.set_paused(not self.paused))
         if self.hotkeys.failed:
             keys = {"show_hide": s.hotkey_show_hide, "pause": s.hotkey_pause,
                     "click_through": s.hotkey_click_through}
             self.status.set_notice(f"Hotkey {keys[self.hotkeys.failed[0]]} is used by another app")
+
+    def set_visible(self, visible):
+        self.visible = visible
+        self.window.setVisible(visible)
+        self._refresh_tray()
+
+    def quit(self):
+        QCoreApplication.quit()
+
+    def _refresh_tray(self):
+        if self.tray is not None:
+            self.tray.refresh()
 
     def _hotkeys_changed(self):
         if self._hotkey_texts() != self._registered_hotkeys:
@@ -228,6 +253,7 @@ class EchoLineApp:
             self.status.set_state("listening")
             self._start_source()
         self.controller.pausedChanged.emit()
+        self._refresh_tray()
 
     def set_source(self, kind):
         if kind == self.settings_store.settings.audio_source:
@@ -238,6 +264,7 @@ class EchoLineApp:
         if self.worker is not None and not self.paused:
             self._start_source()
         self.controller.sourceChanged.emit()
+        self._refresh_tray()
 
     def _on_status(self, state):
         if state in ("listening", "no-device", "no-microphone"):
@@ -287,6 +314,7 @@ class EchoLineApp:
         self._closed = True
         self.hotkeys.unregister_all()
         QCoreApplication.instance().removeNativeEventFilter(self.hotkeys)
+        self.tray.hide()
         self._save_position.stop()
         self.settings_store.setValue("position", [self.window.x(), self.window.y()])
         self.settings_store.save_now()
