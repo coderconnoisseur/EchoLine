@@ -54,20 +54,20 @@ def test_captions_render_rows_from_the_model(overlay):
     captions.apply([Final(0, "hello there."), Partial(1, "general")])
     settle()
 
-    view = window.findChild(QObject, "captionList")
-    assert view.property("count") == 2
+    assert len(caption_lines(window)) == 2
 
 
 def test_long_utterance_stays_within_line_budget(overlay):
     window, captions, _, _ = overlay
-    view = window.findChild(QObject, "captionList")
-    height_before = view.property("height")
+    area = window.findChild(QObject, "captionArea")
+    height_before = area.property("height")
 
     captions.apply([Partial(0, " ".join(["monologue"] * 400))])
     settle()
 
-    assert view.property("height") == height_before
-    assert view.property("atYEnd")
+    assert area.property("height") == height_before
+    top, bottom, height = newest_line_bounds(window)
+    assert abs(bottom - height) <= 2              # the end of the monologue is what shows
 
 
 def test_status_pill_shows_only_when_not_listening(overlay):
@@ -96,7 +96,7 @@ def test_overlay_follows_style_settings(overlay):
     window, captions, _, warnings = overlay
     captions.apply([Final(0, "hello")])
     settle()
-    view = window.findChild(QObject, "captionList")
+    view = window.findChild(QObject, "captionArea")
     one_line_view = view.property("height")
 
     window.store.setValue("font_size", 52)
@@ -110,7 +110,7 @@ def test_overlay_follows_style_settings(overlay):
 
 def test_line_count_sets_view_height(overlay):
     window, _, _, _ = overlay
-    view = window.findChild(QObject, "captionList")
+    view = window.findChild(QObject, "captionArea")
     two_lines = view.property("height")
 
     window.store.setValue("line_count", 1)
@@ -150,7 +150,7 @@ def test_subtitle_mode_shows_only_the_newest_utterance(overlay):
 
     subtitle = window.findChild(QObject, "subtitleView")
     assert subtitle.property("visible")
-    assert not window.findChild(QObject, "captionList").property("visible")
+    assert not window.findChild(QObject, "captionArea").property("visible")
     assert visible_text(subtitle) == "second"
     assert warnings == []
 
@@ -166,4 +166,60 @@ def test_switching_mode_keeps_current_text(overlay):
 
     window.store.setValue("caption_mode", "rolling")
     settle()
-    assert window.findChild(QObject, "captionList").property("count") == 1
+    assert len(caption_lines(window)) == 1
+
+
+def as_item(obj):
+    import shiboken6
+    from PySide6.QtQuick import QQuickItem
+    return shiboken6.wrapInstance(shiboken6.getCppPointer(obj)[0], QQuickItem)
+
+
+def caption_lines(window):
+    from PySide6.QtCore import Q_ARG, Q_RETURN_ARG, QMetaObject, Qt
+    from PySide6.QtQuick import QQuickItem
+
+    repeater = window.findChild(QObject, "captionLines")
+    return [QMetaObject.invokeMethod(repeater, "itemAt", Qt.DirectConnection,
+                                     Q_RETURN_ARG(QQuickItem), Q_ARG(int, i))
+            for i in range(repeater.property("count"))]
+
+
+def newest_line_bounds(window):
+    """(top, bottom, area height) of the newest caption line inside the visible caption area."""
+    from PySide6.QtCore import QPointF
+
+    area = as_item(window.findChild(QObject, "captionArea"))
+    newest = caption_lines(window)[-1]
+    top = newest.mapToItem(area, QPointF(0, 0)).y()
+    return top, top + newest.height(), area.height()
+
+
+def test_newest_line_stays_fully_visible_after_restyling(overlay):
+    # Seen in the Netflix theme: after a font change the rolling view stopped
+    # mid-scroll, cutting off the newest line.
+    window, captions, _, _ = overlay
+    captions.apply([Final(0, "It was the best of times, it was the worst of times."),
+                    Partial(1, "it was the age of wisdom")])
+    settle()
+
+    for theme in ("Netflix", "High contrast", "Classic CC", "Netflix"):
+        window.store.applyTheme(theme)
+        settle(0.6)
+        top, bottom, height = newest_line_bounds(window)
+        # The end of the newest text sits on the bottom edge (a long line may extend above).
+        assert abs(bottom - height) <= 2, (theme, top, bottom, height)
+
+
+def test_caption_lines_never_overlap_after_restyling(overlay):
+    # Seen after switching themes: the line move animation left lines overlapping.
+    window, captions, _, _ = overlay
+    captions.apply([Final(0, "It was the best of times, it was the worst of times."),
+                    Partial(1, "it was the age of wisdom")])
+    settle()
+
+    for theme in ("Netflix", "High contrast", "Minimal"):
+        window.store.applyTheme(theme)
+        settle(0.6)
+        first, second = caption_lines(window)
+        assert first.y() + first.height() <= second.y() + 1, (theme, first.y(), first.height(), second.y())

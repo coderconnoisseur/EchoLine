@@ -168,3 +168,28 @@ def test_snap_moves_window_and_remembers_position(running):
     assert wait_until(lambda: echoline.settings_store.settings.position
                       == [echoline.window.x(), echoline.window.y()], timeout=2)
     assert echoline.window.y() < 100
+
+
+def test_shutdown_saves_pending_settings(tmp_path):
+    from echoline.settings.model import load_settings
+
+    path = tmp_path / "settings.json"
+    store = SettingsStore(Settings(), path, save_delay_ms=60_000)
+    echoline = EchoLineApp(FakeSource(), EchoEngine, store)
+    store.setValue("font_size", 33)
+
+    echoline.shutdown()
+
+    assert load_settings(path)[0].font_size == 33
+
+
+def test_reset_settings_are_announced(tmp_path):
+    echoline = EchoLineApp(FakeSource(), EchoEngine, SettingsStore(Settings(), tmp_path / "s.json"),
+                           settings_reset=True)
+    echoline.start()
+    try:
+        assert wait_until(lambda: echoline.status.property("state") == "settings-reset")
+        wait_until(lambda: False, timeout=0.3)
+        assert echoline.status.property("state") == "settings-reset"     # not hidden by "listening"
+    finally:
+        echoline.shutdown()

@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import QtQuick.Window
 
 Window {
@@ -21,6 +22,7 @@ Window {
     }
 
     Shortcut { sequences: ["Ctrl+Q", "Escape"]; onActivated: Qt.quit() }
+    Shortcut { sequence: "Ctrl+,"; onActivated: controller.openSettings() }
 
     Rectangle {
         id: panel
@@ -31,6 +33,16 @@ Window {
         color: Qt.alpha(overlay.s.background_color, overlay.s.background_opacity)
 
         DragHandler { target: null; onActiveChanged: if (active) overlay.startSystemMove() }
+
+        TapHandler {
+            acceptedButtons: Qt.RightButton
+            onTapped: contextMenu.popup()
+        }
+        Menu {
+            id: contextMenu
+            MenuItem { text: "Settings…"; onTriggered: controller.openSettings() }
+            MenuItem { text: "Quit"; onTriggered: controller.quit() }
+        }
 
         Column {
             id: content
@@ -53,41 +65,41 @@ Window {
                     font.pixelSize: 13
                     text: ({ "loading": "Loading speech model…", "no-device": "No audio device",
                              "model-error": "Speech model unavailable — check your connection and restart",
+                             "settings-reset": "Settings were damaged and have been reset",
                              "lagging": "Catching up…" })[status.state] || status.state
                 }
             }
 
-            ListView {
-                id: captionList
-                objectName: "captionList"
+            // Lines stack in a column anchored to the bottom of a clipped area, so the
+            // newest text always sits at the bottom edge whatever the fonts or wrapping.
+            Item {
+                id: captionArea
+                objectName: "captionArea"
                 width: parent.width
                 visible: overlay.s.caption_mode === "rolling"
                 height: visible ? overlay.lineHeight * overlay.s.line_count : 0
                 clip: true
-                interactive: false
-                model: captions
-                spacing: 0
 
-                onContentHeightChanged: scrollToEnd.restart()
-                onCountChanged: scrollToEnd.restart()
-                onHeightChanged: scrollToEnd.restart()
-                Timer { id: scrollToEnd; interval: 0; onTriggered: captionList.positionViewAtEnd() }
-                Behavior on contentY { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+                Column {
+                    id: captionColumn
+                    anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+                    move: Transition { NumberAnimation { property: "y"; duration: 180; easing.type: Easing.OutCubic } }
 
-                delegate: CaptionText {
-                    required property var model
-                    width: captionList.width
-                    text: model.text
-                    opacity: model.final ? 1.0 : 0.85
-                    Behavior on opacity { NumberAnimation { duration: 120 } }
+                    Repeater {
+                        objectName: "captionLines"
+                        model: captions
+                        delegate: CaptionText {
+                            required property var model
+                            objectName: "captionLine"
+                            property int utteranceId: model.utteranceId
+                            width: captionColumn.width
+                            text: model.text
+                            opacity: 0
+                            Component.onCompleted: opacity = Qt.binding(() => model.final ? 1.0 : 0.85)
+                            Behavior on opacity { NumberAnimation { duration: 160 } }
+                        }
+                    }
                 }
-
-                add: Transition {
-                    NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 160 }
-                    NumberAnimation { property: "y"; from: captionList.height; duration: 180; easing.type: Easing.OutCubic }
-                }
-                remove: Transition { NumberAnimation { property: "opacity"; to: 0; duration: 160 } }
-                displaced: Transition { NumberAnimation { property: "y"; duration: 180; easing.type: Easing.OutCubic } }
             }
 
             SubtitleView {

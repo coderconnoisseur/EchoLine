@@ -2,14 +2,17 @@ import threading
 import time
 import traceback
 
-from PySide6.QtCore import QObject, Qt, QTimer, Signal, Slot
-from PySide6.QtGui import QGuiApplication
+import shiboken6
+from PySide6.QtCore import Property, QCoreApplication, QObject, Qt, QTimer, QUrl, Signal, Slot
+from PySide6.QtGui import QFontDatabase, QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
+from PySide6.QtQuick import QQuickWindow
 
 from .captions.model import CaptionModel
 from .pipeline.latency import LatencyTracker
 from .pipeline.worker import EngineWorker
-from .ui.overlay import OverlayStatus, load_overlay
+from .ui.fonts import caption_fonts
+from .ui.overlay import QML_DIR, OverlayStatus, load_overlay
 from .ui.blur import set_acrylic
 from .ui.placement import clamp_to_screen, snap_position
 
@@ -33,9 +36,22 @@ class Controller(QObject):
     def snap(self, where):
         self._app.snap(where)
 
+    @Slot()
+    def openSettings(self):
+        self._app.open_settings()
+
+    @Slot()
+    def quit(self):
+        QCoreApplication.quit()
+
+    def _get_fonts(self):
+        return caption_fonts(QFontDatabase.families())
+
+    fonts = Property(list, _get_fonts, constant=True)
+
 
 class EchoLineApp:
-    def __init__(self, source, engine_factory, settings_store, show_latency=False):
+    def __init__(self, source, engine_factory, settings_store, show_latency=False, settings_reset=False):
         self.source = source
         self.engine_factory = engine_factory
         self.captions = CaptionModel()
@@ -46,6 +62,9 @@ class EchoLineApp:
         self._source_state = "listening"
         self._pending_capture = None
         self._closed = False
+        self._settings_reset = settings_reset
+        self._notice_active = False
+        self.settings_window = None
 
         self.bridge = Bridge()
         self.bridge.events.connect(self._show_events, Qt.QueuedConnection)
@@ -92,6 +111,10 @@ class EchoLineApp:
 
     def start(self):
         self.status.set_state("loading")
+        if self._settings_reset:
+            self._notice_active = True
+            self.status.set_state("settings-reset")
+            QTimer.singleShot(6000, self._end_notice)
         threading.Thread(target=self._load_engine, name="engine-load", daemon=True).start()
 
     def _load_engine(self):
@@ -114,7 +137,25 @@ class EchoLineApp:
     def _on_status(self, state):
         if state in ("listening", "no-device"):
             self._source_state = state
+        if self._notice_active:
+            return      # keep the notice up; _end_notice shows the latest state
         self.status.set_state(self._source_state if state == "caught-up" else state)
+
+    def _end_notice(self):
+        self._notice_active = False
+        if not self._closed:
+            self.status.set_state(self._source_state if self.worker else "loading")
+
+    def open_settings(self):
+        if self.settings_window is None:
+            before = len(self.qml.rootObjects())
+            self.qml.load(QUrl.fromLocalFile(str(QML_DIR / "Settings.qml")))
+            root = self.qml.rootObjects()[before]
+            self.settings_window = shiboken6.wrapInstance(shiboken6.getCppPointer(root)[0], QQuickWindow)
+        self.settings_window.show()
+        self.settings_window.raise_()
+        self.settings_window.requestActivate()
+        return self.settings_window
 
     def _show_events(self, events, captured_at):
         self.captions.apply(events)
@@ -137,6 +178,7 @@ class EchoLineApp:
         if self._closed:
             return
         self._closed = True
+        self.settings_store.save_now()
         self.source.stop()
         if self.worker is not None:
             self.worker.stop()
@@ -145,4 +187,6 @@ class EchoLineApp:
         # render thread and would call into a freed EchoLineApp.
         self.window.frameSwapped.disconnect(self._on_frame_shown)
         self.window.close()
+        if self.settings_window is not None:
+            self.settings_window.close()
         self.qml.deleteLater()

@@ -31,13 +31,13 @@ def main(argv=None):
 
     from .settings.model import default_settings_path, load_settings
     from .settings.store import SettingsStore
-    settings, _ = load_settings(default_settings_path())
+    settings, was_reset = load_settings(default_settings_path())
     store = SettingsStore(settings, default_settings_path())
 
     arch = {"tiny": ModelArch.TINY_STREAMING, "small": ModelArch.SMALL_STREAMING,
             "medium": ModelArch.MEDIUM_STREAMING}[args.model]
     echoline = EchoLineApp(LoopbackSource(), lambda: MoonshineEngine.load(arch), store,
-                           show_latency=args.show_latency)
+                           show_latency=args.show_latency, settings_reset=was_reset)
     echoline.start()
     try:
         return qt_app.exec()
