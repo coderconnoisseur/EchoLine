@@ -1,6 +1,8 @@
 import subprocess
 import sys
 
+from echoline.settings.model import Settings
+
 
 def test_entry_point_creates_a_widgets_application():
     # The tray icon (QSystemTrayIcon) needs QApplication, not QGuiApplication.
@@ -19,3 +21,14 @@ def test_entry_point_creates_a_widgets_application():
     out = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, timeout=60)
 
     assert out.stdout.strip() == "QApplication False", out.stderr[-400:]
+
+
+def test_startup_mode():
+    from echoline.__main__ import startup_mode
+
+    have = lambda name: name == "tiny"                       # noqa: E731
+    assert startup_mode(Settings(), "", have) == "setup"
+    assert startup_mode(Settings(onboarded=False, model="tiny"), "tiny", have) == "setup"
+    assert startup_mode(Settings(onboarded=True, model="tiny"), "tiny", have) == "run"
+    assert startup_mode(Settings(onboarded=True, model="small"), "small", have) == "repair"   # files gone
+    assert startup_mode(Settings(onboarded=True), "", have) == "setup"
