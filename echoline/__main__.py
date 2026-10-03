@@ -29,9 +29,15 @@ def main(argv=None):
     from .audio.loopback import LoopbackSource
     from .engine.moonshine_engine import MoonshineEngine
 
+    from .settings.model import default_settings_path, load_settings
+    from .settings.store import SettingsStore
+    settings, _ = load_settings(default_settings_path())
+    store = SettingsStore(settings, default_settings_path())
+
     arch = {"tiny": ModelArch.TINY_STREAMING, "small": ModelArch.SMALL_STREAMING,
             "medium": ModelArch.MEDIUM_STREAMING}[args.model]
-    echoline = EchoLineApp(LoopbackSource(), lambda: MoonshineEngine.load(arch), show_latency=args.show_latency)
+    echoline = EchoLineApp(LoopbackSource(), lambda: MoonshineEngine.load(arch), store,
+                           show_latency=args.show_latency)
     echoline.start()
     try:
         return qt_app.exec()

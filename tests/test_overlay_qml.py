@@ -11,18 +11,22 @@ from PySide6.QtQml import QQmlApplicationEngine
 
 from echoline.captions.model import CaptionModel
 from echoline.engine.base import Final, Partial
+from echoline.settings.model import Settings
+from echoline.settings.store import SettingsStore
 from echoline.ui.overlay import OverlayStatus, load_overlay
 
 app = QGuiApplication.instance() or QGuiApplication([])
 
 
 @pytest.fixture
-def overlay():
+def overlay(tmp_path):
     engine = QQmlApplicationEngine()
     warnings = []
     engine.warnings.connect(lambda items: warnings.extend(w.toString() for w in items))
     captions, status = CaptionModel(), OverlayStatus()
-    window = load_overlay(engine, captions, status, max_lines=2)
+    store = SettingsStore(Settings(), tmp_path / "settings.json")
+    window = load_overlay(engine, captions, status, store)
+    window.store = store
     yield window, captions, status, warnings
     window.close()
     engine.deleteLater()
@@ -86,3 +90,49 @@ def test_overlay_is_returned_as_a_quick_window(overlay):
     window, _, _, _ = overlay
 
     assert isinstance(window, QQuickWindow)
+
+
+def test_overlay_follows_style_settings(overlay):
+    window, captions, _, warnings = overlay
+    captions.apply([Final(0, "hello")])
+    settle()
+    view = window.findChild(QObject, "captionList")
+    one_line_view = view.property("height")
+
+    window.store.setValue("font_size", 52)
+    window.store.setValue("corner_radius", 0)
+    settle()
+
+    assert view.property("height") > one_line_view * 1.5
+    assert window.findChild(QObject, "panel").property("radius") == 0
+    assert warnings == []
+
+
+def test_line_count_sets_view_height(overlay):
+    window, _, _, _ = overlay
+    view = window.findChild(QObject, "captionList")
+    two_lines = view.property("height")
+
+    window.store.setValue("line_count", 1)
+    settle()
+
+    assert abs(view.property("height") - two_lines / 2) < 1
+
+
+def test_width_follows_width_percent(overlay):
+    window, _, _, _ = overlay
+
+    window.store.setValue("width_percent", 50)
+    settle()
+
+    assert abs(window.width() - window.screen().geometry().width() * 0.5) <= 1
+
+
+def test_overlay_height_is_capped_on_small_screens(overlay):
+    window, _, _, _ = overlay
+
+    window.store.setValue("font_size", 64)
+    window.store.setValue("line_count", 3)
+    settle()
+
+    assert window.height() <= window.screen().geometry().height() * 0.4 + 1

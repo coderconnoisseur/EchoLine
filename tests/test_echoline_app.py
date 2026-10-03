@@ -10,6 +10,8 @@ from PySide6.QtGui import QGuiApplication
 
 from echoline.app import EchoLineApp
 from echoline.engine.base import Final, Partial
+from echoline.settings.model import Settings
+from echoline.settings.store import SettingsStore
 
 app = QGuiApplication.instance() or QGuiApplication([])
 
@@ -48,9 +50,10 @@ def wait_until(condition, timeout=3.0):
 
 
 @pytest.fixture
-def running():
+def running(tmp_path):
     source = FakeSource()
-    echoline = EchoLineApp(source, EchoEngine, show_latency=True)
+    echoline = EchoLineApp(source, EchoEngine, SettingsStore(Settings(), tmp_path / "settings.json"),
+                           show_latency=True)
     echoline.start()
     assert wait_until(lambda: echoline.status.property("state") == "listening")
     yield echoline, source
@@ -144,11 +147,11 @@ def test_latency_display_is_updated_on_the_gui_thread(running):
     assert threads == [threading.main_thread()]
 
 
-def test_failed_model_load_is_reported():
+def test_failed_model_load_is_reported(tmp_path):
     def offline_engine():
         raise ConnectionError("could not download model")
 
-    echoline = EchoLineApp(FakeSource(), offline_engine)
+    echoline = EchoLineApp(FakeSource(), offline_engine, SettingsStore(Settings(), tmp_path / "s.json"))
     echoline.start()
     try:
         assert wait_until(lambda: echoline.status.property("state") == "model-error")

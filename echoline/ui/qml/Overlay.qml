@@ -4,27 +4,33 @@ import QtQuick.Window
 Window {
     id: overlay
     objectName: "overlay"
-    flags: Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool
+    readonly property var s: settingsStore.values
+    flags: Qt.FramelessWindowHint | Qt.Tool | (s.always_on_top ? Qt.WindowStaysOnTopHint : 0)
     color: "transparent"
     visible: true
-    width: Screen.width * 0.35
-    height: panel.implicitHeight
+    width: Screen.width * s.width_percent / 100
+    height: Math.min(panel.implicitHeight, Screen.height * 0.4)
     x: (Screen.width - width) / 2
     y: Screen.height * 0.85 - height / 2
 
-    readonly property int fontSize: 26
     readonly property real lineHeight: metrics.height * 1.15
 
-    FontMetrics { id: metrics; font.pixelSize: overlay.fontSize; font.family: "Segoe UI" }
+    FontMetrics {
+        id: metrics
+        font.family: overlay.s.font_family
+        font.pixelSize: overlay.s.font_size
+        font.weight: overlay.s.font_weight
+    }
 
     Shortcut { sequences: ["Ctrl+Q", "Escape"]; onActivated: Qt.quit() }
 
     Rectangle {
         id: panel
+        objectName: "panel"
         anchors.fill: parent
         implicitHeight: content.implicitHeight + 24
-        radius: 14
-        color: Qt.rgba(0, 0, 0, 0.72)
+        radius: overlay.s.corner_radius
+        color: Qt.alpha(overlay.s.background_color, overlay.s.background_opacity)
 
         DragHandler { target: null; onActiveChanged: if (active) overlay.startSystemMove() }
 
@@ -57,7 +63,7 @@ Window {
                 id: captionList
                 objectName: "captionList"
                 width: parent.width
-                height: overlay.lineHeight * maxLines
+                height: overlay.lineHeight * overlay.s.line_count
                 clip: true
                 interactive: false
                 model: captions
@@ -65,22 +71,15 @@ Window {
 
                 onContentHeightChanged: scrollToEnd.restart()
                 onCountChanged: scrollToEnd.restart()
+                onHeightChanged: scrollToEnd.restart()
                 Timer { id: scrollToEnd; interval: 0; onTriggered: captionList.positionViewAtEnd() }
                 Behavior on contentY { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
 
-                delegate: Text {
+                delegate: CaptionText {
                     required property var model
                     width: captionList.width
-                    wrapMode: Text.Wrap
-                    horizontalAlignment: Text.AlignHCenter
-                    color: "white"
-                    opacity: model.final ? 1.0 : 0.85
-                    font.pixelSize: overlay.fontSize
-                    font.family: "Segoe UI"
-                    lineHeight: 1.15
-                    style: Text.Outline
-                    styleColor: Qt.rgba(0, 0, 0, 0.6)
                     text: model.text
+                    opacity: model.final ? 1.0 : 0.85
                     Behavior on opacity { NumberAnimation { duration: 120 } }
                 }
 
@@ -100,5 +99,17 @@ Window {
                 text: status.latency
             }
         }
+    }
+
+    component CaptionText: Text {
+        wrapMode: Text.Wrap
+        horizontalAlignment: Text.AlignHCenter
+        color: overlay.s.text_color
+        font.family: overlay.s.font_family
+        font.pixelSize: overlay.s.font_size
+        font.weight: overlay.s.font_weight
+        lineHeight: 1.15
+        style: ({ "outline": Text.Outline, "shadow": Text.Raised, "none": Text.Normal })[overlay.s.outline]
+        styleColor: overlay.s.outline_color
     }
 }

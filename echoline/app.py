@@ -20,7 +20,7 @@ class Bridge(QObject):
 
 
 class EchoLineApp:
-    def __init__(self, source, engine_factory, show_latency=False):
+    def __init__(self, source, engine_factory, settings_store, show_latency=False):
         self.source = source
         self.engine_factory = engine_factory
         self.captions = CaptionModel()
@@ -39,7 +39,7 @@ class EchoLineApp:
         self.bridge.frame_shown.connect(self._record_latency, Qt.QueuedConnection)
 
         self.qml = QQmlApplicationEngine()
-        self.window = load_overlay(self.qml, self.captions, self.status)
+        self.window = load_overlay(self.qml, self.captions, self.status, settings_store)
         self.window.frameSwapped.connect(self._on_frame_shown, Qt.DirectConnection)
 
     def start(self):
