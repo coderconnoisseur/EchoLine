@@ -281,6 +281,7 @@ class EchoLineApp:
 
     def set_paused(self, paused):
         if paused == self.paused or self.worker is None:
+            self._refresh_tray()     # undo a tray checkbox toggled before the model was ready
             return
         self.paused = paused
         if paused:

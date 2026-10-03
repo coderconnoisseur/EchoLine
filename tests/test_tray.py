@@ -86,3 +86,19 @@ def test_click_through_can_always_be_turned_off_from_the_tray(echoline):
     item.trigger()
 
     assert not echoline.settings_store.settings.click_through
+
+
+def test_pause_before_the_model_loads_does_not_leave_the_tray_wrong(tmp_path):
+    def never_ready():
+        import threading
+        threading.Event().wait(5)      # model still loading
+
+    instance = EchoLineApp(lambda kind: FakeSource(), never_ready, SettingsStore(Settings(), tmp_path / "s.json"))
+    instance.start()
+    try:
+        action(instance, "pause").trigger()
+
+        assert not instance.paused
+        assert not action(instance, "pause").isChecked()
+    finally:
+        instance.shutdown()
