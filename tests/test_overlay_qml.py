@@ -304,3 +304,42 @@ def test_hover_bar_appears_while_hovered(overlay):
     settle()
 
     assert bar.property("opacity") == 1
+
+
+def test_auto_hide_fades_after_silence_and_returns_with_speech(overlay):
+    window, captions, status, _ = overlay
+    window.findChild(QObject, "overlayHover").setProperty("enabled", False)   # offscreen cursor sits on the window
+    status.set_state("listening")
+    window.setProperty("autoHideDelay", 200)
+    window.store.setValue("auto_hide", True)
+    captions.apply([Partial(0, "hello")])
+    settle(0.9)
+    panel = window.findChild(QObject, "panel")
+    assert panel.property("opacity") == 0
+
+    window.setProperty("autoHideDelay", 5000)     # don't fade again while we look
+    captions.apply([Partial(0, "hello again")])
+    settle(0.5)
+    assert panel.property("opacity") == 1
+
+
+def test_auto_hide_keeps_status_visible(overlay):
+    window, captions, status, _ = overlay
+    window.findChild(QObject, "overlayHover").setProperty("enabled", False)
+    status.set_state("no-device")
+    window.setProperty("autoHideDelay", 200)
+    window.store.setValue("auto_hide", True)
+    settle(0.9)
+
+    assert window.findChild(QObject, "panel").property("opacity") == 1
+
+
+def test_auto_hide_off_never_fades(overlay):
+    window, captions, status, _ = overlay
+    window.findChild(QObject, "overlayHover").setProperty("enabled", False)
+    status.set_state("listening")
+    window.setProperty("autoHideDelay", 200)
+    captions.apply([Partial(0, "hello")])
+    settle(0.9)
+
+    assert window.findChild(QObject, "panel").property("opacity") == 1

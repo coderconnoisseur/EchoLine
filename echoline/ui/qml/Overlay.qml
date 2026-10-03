@@ -30,6 +30,20 @@ Window {
         font.weight: overlay.s.font_weight
     }
 
+    property int autoHideDelay: 5000
+    property bool quiet: false
+    readonly property bool attention: status.state !== "listening" || status.notice !== ""
+    Timer {
+        id: quietTimer
+        interval: overlay.autoHideDelay
+        running: overlay.s.auto_hide
+        onTriggered: overlay.quiet = true
+    }
+    Connections {
+        target: captions
+        function onLatestChanged() { overlay.quiet = false; quietTimer.restart() }
+    }
+
     Shortcut { sequences: ["Ctrl+Q", "Escape"]; onActivated: Qt.quit() }
     Shortcut { sequence: "Ctrl+,"; onActivated: controller.openSettings() }
 
@@ -40,6 +54,10 @@ Window {
         implicitHeight: content.implicitHeight + 24
         radius: overlay.s.corner_radius
         color: Qt.alpha(overlay.s.background_color, overlay.s.background_opacity)
+        // Auto-hide: fade out after silence, but never over a status message or while hovered.
+        readonly property bool faded: overlay.s.auto_hide && overlay.quiet && !overlay.attention && !overlayHover.active
+        opacity: faded ? 0 : 1
+        Behavior on opacity { NumberAnimation { duration: panel.faded ? 400 : 150 } }
 
         DragHandler {
             target: null
