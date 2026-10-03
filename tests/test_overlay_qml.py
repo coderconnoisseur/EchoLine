@@ -136,3 +136,34 @@ def test_overlay_height_is_capped_on_small_screens(overlay):
     settle()
 
     assert window.height() <= window.screen().geometry().height() * 0.4 + 1
+
+
+def visible_text(item):
+    return item.findChild(QObject, "subtitleText").property("text")
+
+
+def test_subtitle_mode_shows_only_the_newest_utterance(overlay):
+    window, captions, _, warnings = overlay
+    window.store.setValue("caption_mode", "subtitle")
+    captions.apply([Final(0, "first sentence."), Partial(1, "second")])
+    settle()
+
+    subtitle = window.findChild(QObject, "subtitleView")
+    assert subtitle.property("visible")
+    assert not window.findChild(QObject, "captionList").property("visible")
+    assert visible_text(subtitle) == "second"
+    assert warnings == []
+
+
+def test_switching_mode_keeps_current_text(overlay):
+    window, captions, _, _ = overlay
+    captions.apply([Partial(0, "mid sentence")])
+    settle()
+
+    window.store.setValue("caption_mode", "subtitle")
+    settle()
+    assert visible_text(window.findChild(QObject, "subtitleView")) == "mid sentence"
+
+    window.store.setValue("caption_mode", "rolling")
+    settle()
+    assert window.findChild(QObject, "captionList").property("count") == 1

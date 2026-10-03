@@ -63,7 +63,8 @@ Window {
                 id: captionList
                 objectName: "captionList"
                 width: parent.width
-                height: overlay.lineHeight * overlay.s.line_count
+                visible: overlay.s.caption_mode === "rolling"
+                height: visible ? overlay.lineHeight * overlay.s.line_count : 0
                 clip: true
                 interactive: false
                 model: captions
@@ -89,6 +90,14 @@ Window {
                 }
                 remove: Transition { NumberAnimation { property: "opacity"; to: 0; duration: 160 } }
                 displaced: Transition { NumberAnimation { property: "y"; duration: 180; easing.type: Easing.OutCubic } }
+            }
+
+            SubtitleView {
+                width: parent.width
+                height: visible ? implicitHeight : 0
+                visible: overlay.s.caption_mode === "subtitle"
+                s: overlay.s
+                lineHeight: overlay.lineHeight
             }
 
             Text {
