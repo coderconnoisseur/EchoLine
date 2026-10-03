@@ -16,7 +16,7 @@ offline and nothing you hear leaves your computer.
 - Always-on-top, translucent overlay with smoothly rolling caption lines, or film-style subtitle blocks
 - Four caption themes (Classic CC, Netflix, Minimal, High contrast) and full control over font, size, colors, outline, background, width and line count
 - Remembers where you put it; snap to the top, center or bottom of the screen
-- Tray icon, hover bar and global hotkeys: **Ctrl+Alt+C** show/hide, **Ctrl+Alt+P** pause, **Ctrl+Alt+T** click-through
+- Tray icon, hover bar and global hotkeys: **Ctrl+Alt+Shift+C** show/hide, **Ctrl+Alt+Shift+P** pause, **Ctrl+Alt+Shift+T** click-through
 - Microphone captioning for in-person conversations and lectures
 - Click-through (clicks reach the window below), auto-hide after silence, start with Windows
 - Drag the overlay anywhere, or drag its edges to resize
@@ -55,11 +55,11 @@ offline and nothing you hear leaves your computer.
 - **Hover bar:** move the pointer over the captions for pause, source,
   settings and hide buttons.
 - **Hotkeys** (work while other apps have focus; change them in Settings → Hotkeys):
-  - `Ctrl+Alt+C` show or hide captions
-  - `Ctrl+Alt+P` pause or resume
-  - `Ctrl+Alt+T` click-through on or off
+  - `Ctrl+Alt+Shift+C` show or hide captions
+  - `Ctrl+Alt+Shift+P` pause or resume
+  - `Ctrl+Alt+Shift+T` click-through on or off
 - **Click-through:** the captions ignore the mouse so you can click the video
-  under them. Turn it off with `Ctrl+Alt+T` or from the tray icon.
+  under them. Turn it off with `Ctrl+Alt+Shift+T` or from the tray icon.
 
 Hiding the captions keeps EchoLine running in the tray; quit from the tray
 menu or the captions' right-click menu.

@@ -31,9 +31,9 @@ class Settings:
     auto_hide: bool = False
     click_through: bool = False
     start_with_windows: bool = False
-    hotkey_show_hide: str = "Ctrl+Alt+C"
-    hotkey_pause: str = "Ctrl+Alt+P"
-    hotkey_click_through: str = "Ctrl+Alt+T"
+    hotkey_show_hide: str = "Ctrl+Alt+Shift+C"
+    hotkey_pause: str = "Ctrl+Alt+Shift+P"
+    hotkey_click_through: str = "Ctrl+Alt+Shift+T"
 
 
 RANGES = {"font_size": (14, 64), "line_count": (1, 3), "background_opacity": (0.0, 1.0),

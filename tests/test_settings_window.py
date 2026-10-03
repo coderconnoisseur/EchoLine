@@ -142,8 +142,8 @@ def test_always_on_top_is_offered_again(settings_window):
 def test_hotkey_buttons_show_current_keys(settings_window):
     _, window, _, _ = settings_window
 
-    assert find(window, "hotkeyPause").property("text") == "Ctrl+Alt+P"
-    assert find(window, "hotkeyShowHide").property("text") == "Ctrl+Alt+C"
+    assert find(window, "hotkeyPause").property("text") == "Ctrl+Alt+Shift+P"
+    assert find(window, "hotkeyShowHide").property("text") == "Ctrl+Alt+Shift+C"
 
 
 def test_pressing_keys_records_a_new_hotkey(settings_window):

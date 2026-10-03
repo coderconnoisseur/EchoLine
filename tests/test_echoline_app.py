@@ -365,7 +365,7 @@ def test_click_through_makes_the_overlay_ignore_the_mouse(running):
     echoline.set_click_through(True)
     assert echoline.window.flags() & Qt.WindowTransparentForInput
     assert echoline.settings_store.settings.click_through
-    assert "Ctrl+Alt+T" in echoline.status.property("notice")
+    assert "Ctrl+Alt+Shift+T" in echoline.status.property("notice")
 
     echoline.set_click_through(False)
     assert not echoline.window.flags() & Qt.WindowTransparentForInput

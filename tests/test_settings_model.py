@@ -85,7 +85,7 @@ def test_control_settings_have_defaults():
     s = Settings()
 
     assert (s.audio_source, s.auto_hide, s.click_through, s.start_with_windows) == ("system", False, False, False)
-    assert (s.hotkey_show_hide, s.hotkey_pause, s.hotkey_click_through) == ("Ctrl+Alt+C", "Ctrl+Alt+P", "Ctrl+Alt+T")
+    assert (s.hotkey_show_hide, s.hotkey_pause, s.hotkey_click_through) == ("Ctrl+Alt+Shift+C", "Ctrl+Alt+Shift+P", "Ctrl+Alt+Shift+T")
 
 
 def test_control_settings_are_validated():
@@ -94,6 +94,6 @@ def test_control_settings_are_validated():
 
     assert s.audio_source == "system"
     assert s.auto_hide is False
-    assert s.hotkey_pause == "Ctrl+Alt+P"
+    assert s.hotkey_pause == "Ctrl+Alt+Shift+P"
     assert s.hotkey_show_hide == ""                      # disabled is allowed
     assert s.hotkey_click_through == "Ctrl+Shift+F9"
