@@ -377,3 +377,12 @@ def test_click_through_hotkey_toggles_it(running):
     echoline.hotkeys.trigger("click_through")
 
     assert echoline.settings_store.settings.click_through
+
+
+def test_resizing_the_window_updates_width_percent(running):
+    echoline, _ = running
+    screen_width = echoline.window.screen().geometry().width()
+
+    echoline.window.setWidth(int(screen_width * 0.5))      # as a system resize would
+
+    assert wait_until(lambda: echoline.settings_store.settings.width_percent == 50, timeout=2)

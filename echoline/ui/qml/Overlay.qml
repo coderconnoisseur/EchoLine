@@ -11,7 +11,17 @@ Window {
     flags: Qt.FramelessWindowHint | Qt.Tool | Qt.WindowStaysOnTopHint
     color: "transparent"
     visible: true
-    width: Screen.width * s.width_percent / 100
+    // Width is set imperatively so a drag-resize from the edge does not fight a binding.
+    // Only when width_percent itself changes, or other setting changes would undo a resize.
+    property int appliedPercent: -1
+    function applyWidth() {
+        if (s.width_percent !== appliedPercent) {
+            appliedPercent = s.width_percent
+            width = Screen.width * s.width_percent / 100
+        }
+    }
+    Component.onCompleted: applyWidth()
+    Connections { target: settingsStore; function onValuesChanged() { overlay.applyWidth() } }
     height: Math.min(panel.implicitHeight, maxHeight)
 
     readonly property real lineHeight: metrics.height * 1.15
@@ -84,6 +94,21 @@ Window {
             visible: opacity > 0
             Behavior on opacity { NumberAnimation { duration: 200 } }
         }
+
+        component ResizeEdge: MouseArea {
+            property int edge
+            width: 8
+            anchors { top: parent.top; bottom: parent.bottom }
+            cursorShape: Qt.SizeHorCursor
+            visible: overlayHover.active
+            onPressed: {
+                if (controller)
+                    controller.dragStarted()     // a resized overlay is no longer snapped
+                overlay.startSystemResize(edge)
+            }
+        }
+        ResizeEdge { anchors.left: parent.left; edge: Qt.LeftEdge }
+        ResizeEdge { anchors.right: parent.right; edge: Qt.RightEdge }
 
         TapHandler {
             acceptedButtons: Qt.RightButton

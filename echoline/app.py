@@ -117,6 +117,9 @@ class EchoLineApp:
         self._save_position = QTimer(singleShot=True, interval=500)
         self._save_position.timeout.connect(
             lambda: self.settings_store.setValue("position", [self.window.x(), self.window.y()]))
+        self._save_width = QTimer(singleShot=True, interval=500)
+        self._save_width.timeout.connect(self._store_width)
+        self.window.widthChanged.connect(self._save_width.start)
         self._anchor = None          # "top" | "center" | "bottom" after a snap, until dragged
         self._place_window()
         self.window.widthChanged.connect(self._keep_anchor)
@@ -196,6 +199,11 @@ class EchoLineApp:
                 set_blur(int(self.window.winId()), settings.blur_behind,
                          size, round(settings.corner_radius * scale))
             self._blur_applied = state
+
+    def _store_width(self):
+        # Widths set from the setting round back to the same percent, so this does not loop.
+        percent = round(self.window.width() * 100 / self.window.screen().geometry().width())
+        self.settings_store.setValue("width_percent", percent)
 
     def _screen_rects(self):
         primary = QGuiApplication.primaryScreen()
@@ -325,6 +333,7 @@ class EchoLineApp:
         if self._closed:
             return
         self._closed = True
+        self._save_width.stop()
         self.hotkeys.unregister_all()
         QCoreApplication.instance().removeNativeEventFilter(self.hotkeys)
         self.tray.hide()
