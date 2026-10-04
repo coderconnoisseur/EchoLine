@@ -146,3 +146,18 @@ Item {
     assert line.property("text") != ""
     sample.stop()
     assert warnings == []
+
+
+def test_caption_backdrop_stays_video_dark_in_light_mode():
+    # Seen in light-mode screenshots: Netflix-style shadowed white text washed
+    # out on a pale backdrop. Captions sit over video, so the backdrop stays dark.
+    engine, root, _ = build("""
+import QtQuick
+Item {
+    Theme { objectName: "darkTheme"; dark: true }
+    Theme { objectName: "lightTheme"; dark: false }
+}
+""")
+    dark, light = root.findChild(QObject, "darkTheme"), root.findChild(QObject, "lightTheme")
+    for token in ("backdropTop", "backdropBottom"):
+        assert light.property(token) == dark.property(token)

@@ -15,6 +15,7 @@ Item {
     readonly property color divider: dark ? "#3a3a3a" : "#e8e8e8"
     readonly property color text: dark ? "#f3f3f3" : "#1b1b1b"
     readonly property color subtext: dark ? "#a6a6a6" : "#616161"
-    readonly property color backdropTop: dark ? "#33415e" : "#c7d3ea"
-    readonly property color backdropBottom: dark ? "#15161b" : "#8b97ad"
+    // Captions sit over video: the preview backdrop stays dark in both themes.
+    readonly property color backdropTop: "#33415e"
+    readonly property color backdropBottom: "#15161b"
 }
