@@ -1,5 +1,4 @@
 import QtQuick
-import "captions.js" as Captions
 
 // Newest utterance as one block; the previous phrase fades out as the next fades in.
 Item {
@@ -12,12 +11,12 @@ Item {
     implicitHeight: lineHeight * s.line_count
     clip: true
 
-    readonly property string latestMarkup: Captions.markup(captions.latestText, captions.latestSettled,
-                                                          s.unsettled_words, s.text_color)
-
-    component SubtitleText: Text {
-        textFormat: Text.StyledText
+    // The phrase that is leaving, frozen as plain text while it fades.
+    Text {
+        id: outgoing
+        objectName: "subtitleOutgoing"
         anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+        opacity: 0
         wrapMode: Text.Wrap
         horizontalAlignment: Text.AlignHCenter
         color: root.s.text_color
@@ -29,34 +28,29 @@ Item {
         styleColor: root.s.outline_color
     }
 
-    SubtitleText {
-        id: outgoing
-        objectName: "subtitleOutgoing"
-        opacity: 0
-    }
-
-    SubtitleText {
-        id: subtitleText
-        objectName: "subtitleText"
-        text: root.shownText
+    CaptionLine {
+        id: incoming
+        objectName: "subtitleLine"
+        anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+        words: captions.latestWords
+        s: root.s
     }
 
     ParallelAnimation {
         id: crossFade
-        NumberAnimation { target: outgoing; property: "opacity"; from: 1; to: 0; duration: 200 }
-        NumberAnimation { target: subtitleText; property: "opacity"; from: 0; to: 1; duration: 200 }
+        NumberAnimation { target: outgoing; property: "opacity"; from: 1; to: 0; duration: 200 * motion.scale }
+        NumberAnimation { target: incoming; property: "opacity"; from: 0; to: 1; duration: 200 * motion.scale }
     }
 
-    // Follows caption updates and dim/hide switches alike. A new phrase with nothing
-    // to show yet ("hide" mode) keeps the old one up instead of blanking the screen.
-    onLatestMarkupChanged: {
-        if (latestMarkup === "" && captions.latestId !== shownId)
-            return
-        if (captions.latestId !== shownId && shownId !== -1) {
-            outgoing.text = shownText
-            crossFade.restart()
+    Connections {
+        target: captions
+        function onLatestChanged() {
+            if (captions.latestId !== root.shownId && root.shownId !== -1) {
+                outgoing.text = root.shownText
+                crossFade.restart()
+            }
+            root.shownId = captions.latestId
+            root.shownText = captions.latestText
         }
-        shownId = captions.latestId
-        shownText = latestMarkup
     }
 }

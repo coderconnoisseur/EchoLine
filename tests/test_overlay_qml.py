@@ -2,7 +2,6 @@ import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-import re
 import time
 
 import pytest
@@ -139,13 +138,8 @@ def test_overlay_height_is_capped_on_small_screens(overlay):
     assert window.height() <= window.screen().geometry().height() * 0.4 + 1
 
 
-def plain(markup):
-    """Caption text without the dimming markup."""
-    return re.sub(r"<[^>]+>", "", markup).replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
-
-
 def visible_text(item):
-    return plain(item.findChild(QObject, "subtitleText").property("text"))
+    return item.findChild(QObject, "subtitleLine").property("text")
 
 
 def test_subtitle_mode_shows_only_the_newest_utterance(overlay):
@@ -349,57 +343,65 @@ def test_auto_hide_off_never_fades(overlay):
     assert window.findChild(QObject, "panel").property("opacity") == 1
 
 
-def test_dim_mode_dims_only_the_words_still_changing(overlay):
+def test_rolling_lines_are_word_layouts(overlay):
     window, captions, _, warnings = overlay
-    captions.apply([Partial(0, "It was the")])
-    captions.apply([Partial(0, "It was the best <of>")])
-    settle()
-
-    text = caption_lines(window)[0].property("text")
-    assert text == 'It was the<font color="#8cffffff"> best &lt;of&gt;</font>'
-    captions.apply([Final(0, "It was the best of times.")])
-    settle()
-    assert caption_lines(window)[0].property("text") == "It was the best of times."
-    assert warnings == []
-
-
-def test_hide_mode_shows_only_settled_words(overlay):
-    window, captions, _, warnings = overlay
-    window.store.setValue("unsettled_words", "hide")
-    captions.apply([Partial(0, "It was the")])
-    captions.apply([Partial(0, "It was the beast")])
-    settle()
-    assert caption_lines(window)[0].property("text") == "It was the"
-
-    window.store.setValue("caption_mode", "subtitle")
-    settle()
-    assert visible_text(window.findChild(QObject, "subtitleView")) == "It was the"
-    assert warnings == []
-
-
-def test_hide_mode_never_shows_a_blank_line_or_blank_subtitle(overlay):
-    window, captions, _, _ = overlay
-    window.store.setValue("unsettled_words", "hide")
-    captions.apply([Final(0, "first phrase.")])
-    captions.apply([Partial(1, "second")])            # nothing settled yet
+    captions.apply([Final(0, "first line."), Partial(1, "second words")])
     settle()
     lines = caption_lines(window)
-    assert lines[1].property("height") == 0 or not lines[1].property("visible")
-
-    window.store.setValue("caption_mode", "subtitle")
-    settle()
-    assert visible_text(window.findChild(QObject, "subtitleView")) == "first phrase."
-    captions.apply([Partial(1, "second phrase")])
-    settle()
-    assert visible_text(window.findChild(QObject, "subtitleView")) == "second"
+    assert [line.property("text") for line in lines] == ["first line.", "second words"]
+    assert warnings == []
 
 
-def test_subtitle_follows_a_switch_between_dim_and_hide(overlay):
+def shown(word):
+    """How visible a word is once the top-edge fade is applied."""
+    return word.opacity() * word.findChild(QObject, "fader").property("opacity")
+
+
+def words_in(line):
+    return sorted((i for i in line.childItems() if i.objectName() == "word"), key=lambda i: (i.y(), i.x()))
+
+
+def test_lines_scrolled_above_the_top_fade_out(overlay):
     window, captions, _, _ = overlay
-    window.store.setValue("caption_mode", "subtitle")
-    captions.apply([Partial(0, "It was")])
-    captions.apply([Partial(0, "It was the")])
-    settle()
-    window.store.setValue("unsettled_words", "hide")
-    settle()
-    assert visible_text(window.findChild(QObject, "subtitleView")) == "It was"
+    window.store.setValue("line_count", 1)
+    captions.apply([Final(0, "older line."), Final(1, "newest line.")])
+    settle(0.8)
+    older, newest = caption_lines(window)
+    assert all(shown(w) == 1.0 for w in words_in(newest))
+    assert all(shown(w) < 0.5 for w in words_in(older))
+
+
+def test_a_wrapped_live_line_keeps_its_newest_row_visible(overlay):
+    # Review find: the whole line faded by its top edge, so in 1-line mode a
+    # sentence vanished as soon as it wrapped.
+    window, captions, _, _ = overlay
+    window.store.setValue("line_count", 1)
+    long = " ".join(["wonderful"] * 30)
+    captions.apply([Partial(0, long)])
+    captions.apply([Partial(0, long + " end")])
+    settle(0.8)
+    line = caption_lines(window)[0]
+    last_row = [w for w in words_in(line) if w.y() == max(x.y() for x in words_in(line))]
+    assert all(shown(w) > 0.5 for w in last_row)
+
+
+def test_reduced_motion_scrolls_lines_without_animation(tmp_path):
+    from echoline.ui.motion import Motion
+
+    engine = QQmlApplicationEngine()
+    captions = CaptionModel(settle_after_ms=60_000)
+    keep = captions, OverlayStatus(), SettingsStore(Settings(), tmp_path / "s.json")
+    window = load_overlay(engine, *keep, motion=Motion(False))
+    try:
+        captions.apply([Partial(0, "short"), Final(1, "second line.")])
+        settle()
+        second = caption_lines(window)[1]
+        before = second.y()
+        captions.apply([Partial(0, " ".join(["wonderful"] * 20))])   # line above wraps, pushing it down
+        settle(0.05)
+        moved = second.y()
+        settle(0.3)
+        assert moved != before and second.y() == moved                # jumped at once, no slide
+    finally:
+        window.close()
+        engine.deleteLater()

@@ -105,3 +105,7 @@ def test_model_and_onboarding_fields_validate():
     assert (s.model, s.onboarded) == ("small", True)
     s = validate({"model": "huge", "onboarded": "yes"})
     assert (s.model, s.onboarded) == ("", False)
+
+
+def test_removed_unsettled_words_setting_is_ignored():
+    assert not hasattr(validate({"unsettled_words": "hide"}), "unsettled_words")

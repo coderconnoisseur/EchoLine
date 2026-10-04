@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Window
-import "captions.js" as Captions
 
 Window {
     id: overlay
@@ -164,21 +163,20 @@ Window {
                 Column {
                     id: captionColumn
                     anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-                    move: Transition { NumberAnimation { property: "y"; duration: 180; easing.type: Easing.OutCubic } }
+                    move: Transition { NumberAnimation { property: "y"; duration: 180 * motion.scale; easing.type: Easing.OutCubic } }
 
                     Repeater {
                         objectName: "captionLines"
                         model: captions
-                        delegate: CaptionText {
+                        delegate: CaptionLine {
                             required property var model
                             objectName: "captionLine"
                             property int utteranceId: model.utteranceId
                             width: captionColumn.width
-                            text: Captions.markup(model.text, model.settled, overlay.s.unsettled_words, overlay.s.text_color)
-                            visible: text !== ""       // "hide" mode: no blank line before a word settles
-                            opacity: 0
-                            Component.onCompleted: opacity = Qt.binding(() => model.final ? 1.0 : 0.85)
-                            Behavior on opacity { NumberAnimation { duration: 160 } }
+                            words: model.words
+                            s: overlay.s
+                            // Rows scrolling above the top edge fade out instead of being cut off.
+                            fadeTop: captionColumn.y + y
                         }
                     }
                 }
@@ -201,18 +199,5 @@ Window {
                 text: status.latency
             }
         }
-    }
-
-    component CaptionText: Text {
-        textFormat: Text.StyledText
-        wrapMode: Text.Wrap
-        horizontalAlignment: Text.AlignHCenter
-        color: overlay.s.text_color
-        font.family: overlay.s.font_family
-        font.pixelSize: overlay.s.font_size
-        font.weight: overlay.s.font_weight
-        lineHeight: 1.15
-        style: ({ "outline": Text.Outline, "shadow": Text.Raised, "none": Text.Normal })[overlay.s.outline]
-        styleColor: overlay.s.outline_color
     }
 }
