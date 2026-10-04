@@ -30,6 +30,11 @@ class SettingsStore(QObject):
 
     themeNames = Property(list, _get_theme_names, constant=True)
 
+    def _get_theme_presets(self):
+        return [{"name": name, **preset} for name, preset in PRESETS.items()]
+
+    themePresets = Property(list, _get_theme_presets, constant=True)
+
     def _update(self, settings):
         if settings == self.settings:
             return
