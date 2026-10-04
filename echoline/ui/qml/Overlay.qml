@@ -163,7 +163,7 @@ Window {
                 Column {
                     id: captionColumn
                     anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-                    move: Transition { NumberAnimation { property: "y"; duration: 180; easing.type: Easing.OutCubic } }
+                    move: Transition { NumberAnimation { property: "y"; duration: 180 * motion.scale; easing.type: Easing.OutCubic } }
 
                     Repeater {
                         objectName: "captionLines"
@@ -175,8 +175,8 @@ Window {
                             width: captionColumn.width
                             words: model.words
                             s: overlay.s
-                            // Fade out while scrolling above the top edge instead of being cut off.
-                            opacity: Math.max(0, Math.min(1, 1 + (captionColumn.y + y) / Math.max(1, overlay.lineHeight)))
+                            // Rows scrolling above the top edge fade out instead of being cut off.
+                            fadeTop: captionColumn.y + y
                         }
                     }
                 }

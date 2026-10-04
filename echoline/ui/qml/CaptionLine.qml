@@ -11,6 +11,9 @@ Item {
     readonly property real lineHeight: metrics.height * 1.15
     readonly property real ms: motion.scale
     property int rows: 0
+    // This line's top relative to the visible area's top edge: rows above it fade out
+    // one row at a time, so a long wrapped line keeps its newest rows visible.
+    property real fadeTop: 0
     implicitHeight: rows * lineHeight
     height: implicitHeight
 
@@ -118,18 +121,26 @@ Item {
             Component.onCompleted: label.text = text
 
             Item {
-                id: body
-                objectName: "body"
+                id: fader
+                objectName: "fader"
                 width: word.width
                 height: word.height
-                layer.enabled: entry.running
-                layer.effect: MultiEffect { blurEnabled: true; blurMax: 16; blur: body.blur }
-                property real blur: 0
-                property real drift: 0
-                transform: Translate { y: body.drift }
+                opacity: Math.max(0, Math.min(1, 1 + (line.fadeTop + word.y) / Math.max(1, line.lineHeight)))
 
-                WordText { id: ghost; opacity: 0 }
-                WordText { id: label }
+                Item {
+                    id: body
+                    objectName: "body"
+                    width: word.width
+                    height: word.height
+                    layer.enabled: entry.running
+                    layer.effect: MultiEffect { blurEnabled: true; blurMax: 16; blur: body.blur }
+                    property real blur: 0
+                    property real drift: 0
+                    transform: Translate { y: body.drift }
+
+                    WordText { id: ghost; opacity: 0 }
+                    WordText { id: label }
+                }
             }
 
             ParallelAnimation {

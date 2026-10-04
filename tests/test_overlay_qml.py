@@ -352,10 +352,56 @@ def test_rolling_lines_are_word_layouts(overlay):
     assert warnings == []
 
 
+def shown(word):
+    """How visible a word is once the top-edge fade is applied."""
+    return word.opacity() * word.findChild(QObject, "fader").property("opacity")
+
+
+def words_in(line):
+    return sorted((i for i in line.childItems() if i.objectName() == "word"), key=lambda i: (i.y(), i.x()))
+
+
 def test_lines_scrolled_above_the_top_fade_out(overlay):
     window, captions, _, _ = overlay
     window.store.setValue("line_count", 1)
     captions.apply([Final(0, "older line."), Final(1, "newest line.")])
     settle(0.8)
     older, newest = caption_lines(window)
-    assert newest.opacity() == 1.0 and older.opacity() < 0.5
+    assert all(shown(w) == 1.0 for w in words_in(newest))
+    assert all(shown(w) < 0.5 for w in words_in(older))
+
+
+def test_a_wrapped_live_line_keeps_its_newest_row_visible(overlay):
+    # Review find: the whole line faded by its top edge, so in 1-line mode a
+    # sentence vanished as soon as it wrapped.
+    window, captions, _, _ = overlay
+    window.store.setValue("line_count", 1)
+    long = " ".join(["wonderful"] * 30)
+    captions.apply([Partial(0, long)])
+    captions.apply([Partial(0, long + " end")])
+    settle(0.8)
+    line = caption_lines(window)[0]
+    last_row = [w for w in words_in(line) if w.y() == max(x.y() for x in words_in(line))]
+    assert all(shown(w) > 0.5 for w in last_row)
+
+
+def test_reduced_motion_scrolls_lines_without_animation(tmp_path):
+    from echoline.ui.motion import Motion
+
+    engine = QQmlApplicationEngine()
+    captions = CaptionModel(settle_after_ms=60_000)
+    keep = captions, OverlayStatus(), SettingsStore(Settings(), tmp_path / "s.json")
+    window = load_overlay(engine, *keep, motion=Motion(False))
+    try:
+        captions.apply([Partial(0, "short"), Final(1, "second line.")])
+        settle()
+        second = caption_lines(window)[1]
+        before = second.y()
+        captions.apply([Partial(0, " ".join(["wonderful"] * 20))])   # line above wraps, pushing it down
+        settle(0.05)
+        moved = second.y()
+        settle(0.3)
+        assert moved != before and second.y() == moved                # jumped at once, no slide
+    finally:
+        window.close()
+        engine.deleteLater()
