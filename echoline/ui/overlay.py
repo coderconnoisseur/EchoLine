@@ -4,6 +4,8 @@ import shiboken6
 from PySide6.QtCore import Property, QObject, QTimer, QUrl, Signal
 from PySide6.QtQuick import QQuickWindow
 
+from .motion import Motion, animations_enabled
+
 QML_DIR = Path(__file__).parent / "qml"
 
 
@@ -65,8 +67,10 @@ class OverlayStatus(QObject):
     notice = Property(str, _get_notice, notify=noticeChanged)
 
 
-def load_overlay(engine, captions, status, settings_store, controller=None):
+def load_overlay(engine, captions, status, settings_store, controller=None, motion=None):
     context = engine.rootContext()
+    engine._motion = motion or Motion(animations_enabled(), engine)     # kept alive with the engine
+    context.setContextProperty("motion", engine._motion)
     context.setContextProperty("captions", captions)
     context.setContextProperty("status", status)
     context.setContextProperty("settingsStore", settings_store)
