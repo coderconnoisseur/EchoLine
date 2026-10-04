@@ -175,17 +175,6 @@ ApplicationWindow {
                 }
             }
             Row2 {
-                label: "Words still changing"
-                ComboBox {
-                    objectName: "unsettledBox"
-                    Layout.fillWidth: true
-                    textRole: "text"; valueRole: "value"
-                    model: [{ text: "Dimmed", value: "dim" }, { text: "Hidden until settled", value: "hide" }]
-                    currentIndex: model.findIndex(item => item.value === win.s.unsettled_words)
-                    onActivated: (index) => settingsStore.setValue("unsettled_words", model[index].value)
-                }
-            }
-            Row2 {
                 label: "Lines"
                 SpinBox {
                     from: 1; to: 3

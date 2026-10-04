@@ -27,7 +27,6 @@ class Settings:
     position: Optional[list] = None
     always_on_top: bool = True
     caption_mode: str = "rolling"
-    unsettled_words: str = "dim"     # words that may still change: "dim" or "hide"
     audio_source: str = "system"
     auto_hide: bool = False
     click_through: bool = False
@@ -43,7 +42,7 @@ class Settings:
 RANGES = {"font_size": (14, 64), "line_count": (1, 3), "background_opacity": (0.0, 1.0),
           "corner_radius": (0, 32), "width_percent": (20, 90)}
 CHOICES = {"font_weight": (400, 500, 600, 700), "outline": ("outline", "shadow", "none"),
-           "caption_mode": ("rolling", "subtitle"), "unsettled_words": ("dim", "hide"),
+           "caption_mode": ("rolling", "subtitle"),
            "audio_source": ("system", "microphone"),
            "model": ("", "tiny", "small", "medium")}
 COLORS = ("text_color", "outline_color", "background_color")
