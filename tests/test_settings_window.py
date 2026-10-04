@@ -212,27 +212,94 @@ def test_arrow_keys_move_through_pages(settings_window):
     assert window.property("page") == "behavior"
 
 
-def test_window_loads_in_light_and_dark(tmp_path):
-    from PySide6.QtCore import Qt
-
-    hints = QGuiApplication.styleHints()
-    try:
-        for scheme in (Qt.ColorScheme.Light, Qt.ColorScheme.Dark):
-            hints.setColorScheme(scheme)
-            store = SettingsStore(Settings(model="tiny", onboarded=True), tmp_path / f"{scheme.name}.json")
-            echoline = EchoLineApp(lambda kind: FakeSource(), EchoEngine, store)
-            warnings = []
-            echoline.qml.warnings.connect(lambda items: warnings.extend(w.toString() for w in items))
-            echoline.open_settings()
-            wait_until(lambda: False, timeout=0.2)
-            echoline.shutdown()
-            assert warnings == [], (scheme, warnings)
-    finally:
-        hints.unsetColorScheme()
-
-
 def test_sample_runs_only_while_visible(settings_window):
     echoline, window, _, _ = settings_window
     assert echoline.sample.running
     window.close()
     assert wait_until(lambda: not echoline.sample.running, timeout=1)
+
+
+def visual(item, name):
+    for child in item.childItems():
+        if child.objectName() == name:
+            return child
+        found = visual(child, name)
+        if found is not None:
+            return found
+    return None
+
+
+def focus_in_sidebar(window):
+    """The sidebar is a focus scope: focus lands on its current entry."""
+    item = window.activeFocusItem()
+    while item is not None:
+        if item.objectName() == "sidebar":
+            return True
+        item = item.parentItem()
+    return False
+
+
+def test_light_theme_renders_without_warnings(settings_window):
+    # setColorScheme is a no-op offscreen, so flip the window's theme directly.
+    _, window, _, warnings = settings_window
+    theme = find(window, "theme")
+    dark_card = theme.property("card")
+    theme.setProperty("dark", False)
+    for name in PAGES:
+        window.setProperty("page", name)
+        wait_until(lambda: False, timeout=0.05)
+    assert theme.property("card") != dark_card
+    assert warnings == []
+
+
+def test_clicking_the_sidebar_takes_keyboard_focus(settings_window):
+    from PySide6.QtCore import QPoint, Qt
+    from PySide6.QtTest import QTest
+
+    # Review find: after a mouse click, Space still toggled a switch on the page you left.
+    _, window, store, _ = settings_window
+    window.setProperty("page", "position")
+    wait_until(lambda: False, timeout=0.1)
+    find(window, "onTopSwitch").forceActiveFocus()
+    QTest.mouseClick(window, Qt.LeftButton, Qt.NoModifier, QPoint(60, 16 + 5 * 38 + 18))    # "About"
+    wait_until(lambda: False, timeout=0.1)
+    QTest.keyClick(window, Qt.Key_Space)
+
+    assert window.property("page") == "about"
+    assert store.settings.always_on_top is True
+    assert focus_in_sidebar(window)
+
+
+def test_shift_tab_leads_back_to_the_sidebar(settings_window):
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+
+    _, window, _, _ = settings_window
+    window.setProperty("page", "behavior")
+    wait_until(lambda: False, timeout=0.1)
+    find(window, "autoHideSwitch").forceActiveFocus()
+    for _ in range(12):
+        QTest.keyClick(window, Qt.Key_Backtab)
+        if focus_in_sidebar(window):
+            break
+    assert focus_in_sidebar(window)
+
+
+def test_theme_cards_work_from_the_keyboard(settings_window):
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+
+    _, window, store, _ = settings_window
+    card = visual(window.contentItem(), "theme High contrast")
+    assert card.property("activeFocusOnTab")
+    card.forceActiveFocus()
+    QTest.keyClick(window, Qt.Key_Space)
+    assert store.settings.theme == "High contrast"
+
+
+def test_sample_pauses_while_minimised(settings_window):
+    echoline, window, _, _ = settings_window
+    window.showMinimized()
+    assert wait_until(lambda: not echoline.sample.running, timeout=1)
+    window.showNormal()
+    assert wait_until(lambda: echoline.sample.running, timeout=1)

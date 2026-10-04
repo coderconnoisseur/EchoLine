@@ -8,7 +8,7 @@ Rectangle {
     property var theme
     property var s
     property var sample
-    implicitHeight: 140
+    implicitHeight: Math.max(140, box.height + 32)     // big fonts wrap; never clip the top rows
     radius: 10
     clip: true
     gradient: Gradient {

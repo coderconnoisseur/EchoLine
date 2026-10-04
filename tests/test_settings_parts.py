@@ -161,3 +161,23 @@ Item {
     dark, light = root.findChild(QObject, "darkTheme"), root.findChild(QObject, "lightTheme")
     for token in ("backdropTop", "backdropBottom"):
         assert light.property(token) == dark.property(token)
+
+
+def test_preview_grows_to_fit_big_captions(tmp_path):
+    from PySide6.QtCore import QPointF
+
+    store, sample, context = store_and_context(tmp_path, font_size=64)
+    engine, root, _ = build("""
+import QtQuick
+Item {
+    width: 520; height: 600
+    Theme { id: t }
+    PreviewPane { width: 520; theme: t; s: settingsStore.values; sample: sampleCaptions }
+}
+""", context)
+    for _ in range(len(sample.SCRIPT)):
+        sample._step()                                # whole sentence, wrapped over several rows
+    settle(0.5)
+    pane = root.findChild(QObject, "previewPane")
+    box = root.findChild(QObject, "previewCaption")
+    assert box.mapToItem(pane, QPointF(0, 0)).y() >= 0, "caption box spills above the preview"

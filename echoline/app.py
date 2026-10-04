@@ -4,7 +4,7 @@ import traceback
 
 import shiboken6
 from PySide6.QtCore import Property, QCoreApplication, QObject, Qt, QTimer, QUrl, Signal, Slot
-from PySide6.QtGui import QFontDatabase, QGuiApplication
+from PySide6.QtGui import QFontDatabase, QGuiApplication, QWindow
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickWindow
 
@@ -394,8 +394,9 @@ class EchoLineApp:
     def open_settings(self):
         if self.settings_window is None:
             self.settings_window = self._load_window("Settings.qml")
-            self.settings_window.visibleChanged.connect(
-                lambda visible: self.sample.start() if visible else self.sample.stop())
+            # Animate the preview only while it can be seen: not hidden, closed or minimised.
+            self.settings_window.visibilityChanged.connect(
+                lambda v: self.sample.start() if v not in (QWindow.Hidden, QWindow.Minimized) else self.sample.stop())
         self.sample.start()
         return self._present(self.settings_window)
 

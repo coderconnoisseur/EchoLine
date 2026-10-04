@@ -40,6 +40,9 @@ ColumnLayout {
                 readonly property bool selected: gallery.s.theme === modelData.name
                 signal clicked()
                 onClicked: settingsStore.applyTheme(modelData.name)
+                activeFocusOnTab: true
+                Keys.onSpacePressed: clicked()
+                Keys.onReturnPressed: clicked()
                 Layout.fillWidth: true
                 implicitHeight: 96
 
@@ -54,6 +57,15 @@ ColumnLayout {
                     }
                     border.width: card.selected ? 2 : 1
                     border.color: card.selected ? gallery.theme.accent : gallery.theme.cardBorder
+
+                    Rectangle {          // keyboard focus ring
+                        visible: card.activeFocus
+                        anchors { fill: parent; margins: -4 }
+                        radius: 11
+                        color: "transparent"
+                        border.width: 2
+                        border.color: gallery.theme.text
+                    }
 
                     Rectangle {
                         anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom; bottomMargin: 10 }

@@ -26,7 +26,7 @@ ApplicationWindow {
     ]
     function pageIndex(key) { return pages.findIndex(p => p.key === key) }
 
-    Theme { id: theme }
+    Theme { id: theme; objectName: "theme" }
 
     component HotkeyButton: Button {
         property string key
@@ -111,6 +111,7 @@ ApplicationWindow {
                 model: win.pages
                 spacing: 2
                 focus: true
+                activeFocusOnTab: true       // Shift+Tab from a page leads back here
                 keyNavigationEnabled: true
                 currentIndex: 0
                 onCurrentIndexChanged: win.page = win.pages[currentIndex].key
@@ -150,7 +151,10 @@ ApplicationWindow {
                         }
                     }
                     HoverHandler { id: hover }
-                    TapHandler { onTapped: sidebar.currentIndex = entry.index }
+                    TapHandler {
+                        // Take focus too, so keys stop acting on a control of the page left behind.
+                        onTapped: { sidebar.currentIndex = entry.index; sidebar.forceActiveFocus() }
+                    }
                 }
             }
         }
