@@ -48,9 +48,14 @@ Item {
         rows = rowsOut.length
         for (let r = 0; r < rowsOut.length; r++) {
             let x = Math.max(0, (width - rowsOut[r].width) / 2)
+            let previous = null
             for (const item of rowsOut[r].items) {
-                item.place(x, r * lineHeight)
+                // A new word starts right after its neighbour's current (still gliding)
+                // position and glides with the row, so it never lands on top of it.
+                const startX = previous && previous.placed ? previous.x + previous.implicitWidth + space : x
+                item.place(x, r * lineHeight, startX)
                 x += item.implicitWidth + space
+                previous = item
             }
         }
     }
@@ -75,7 +80,9 @@ Item {
             objectName: "word"
             required property string text
             required property bool settled
+            required property int index
             property bool placed: false
+            visible: placed             // never flash at 0,0 before the layout pass places it
             implicitWidth: label.implicitWidth
             width: implicitWidth
             height: line.lineHeight
@@ -83,17 +90,19 @@ Item {
             onImplicitWidthChanged: Qt.callLater(line.relayout)
 
             Behavior on opacity { NumberAnimation { duration: 200 * line.ms; easing.type: Easing.OutCubic } }
-            Behavior on x { enabled: word.placed; NumberAnimation { duration: 220 * line.ms; easing.type: Easing.OutCubic } }
-            Behavior on y { enabled: word.placed; NumberAnimation { duration: 220 * line.ms; easing.type: Easing.OutCubic } }
+            Behavior on x { enabled: word.placed; NumberAnimation { duration: 180 * line.ms; easing.type: Easing.OutCubic } }
+            Behavior on y { enabled: word.placed; NumberAnimation { duration: 180 * line.ms; easing.type: Easing.OutCubic } }
 
-            function place(px, py) {
-                x = px
-                y = py
+            function place(px, py, startX) {
                 if (!placed) {
+                    x = startX
+                    y = py
                     placed = true
                     if (line.ms > 0)
                         entry.restart()
                 }
+                x = px
+                y = py
             }
 
             onTextChanged: {
@@ -103,7 +112,7 @@ Item {
                 }
                 ghost.text = label.text
                 label.text = text
-                if (line.ms > 0)
+                if (placed && line.ms > 0)
                     correction.restart()
             }
             Component.onCompleted: label.text = text

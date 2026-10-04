@@ -116,3 +116,34 @@ def test_motion_off_shows_final_state_at_once():
     items = word_items(line)
     assert all(i.opacity() == 1.0 for i in items)
     assert all(i.findChild(QObject, "body").property("opacity") == 1.0 for i in items)
+
+
+def test_new_words_stay_hidden_until_placed():
+    # Seen in recorded frames: a new word flashed at the left edge for a frame
+    # before the layout pass moved it into its row.
+    engine, words, line, _ = make()
+    words.update(["It", "was"], 0)
+    settle()
+    words.update(["It", "was", "the", "best"], 0)       # delegates exist, layout not yet run
+    fresh = [i for i in line.childItems() if i.objectName() == "word" and not i.property("placed")]
+    assert fresh and not any(i.isVisible() for i in fresh)
+    settle()
+    assert all(i.isVisible() for i in word_items(line))
+
+
+def test_words_never_overlap_while_the_row_recenters():
+    # Seen in recorded frames: appended words appeared at their final spot while
+    # the rest of the centered row was still gliding left, overlapping it.
+    engine, words, line, _ = make(width=400)
+    words.update(["It", "was"], 0)
+    settle()
+    words.update(["It", "was", "the", "best", "of"], 0)
+    deadline = time.monotonic() + 0.5
+    while time.monotonic() < deadline:
+        app.processEvents()
+        items = sorted((i for i in line.childItems() if i.objectName() == "word" and i.isVisible()),
+                       key=lambda i: i.property("index"))
+        for a, b in zip(items, items[1:]):
+            if a.y() == b.y():                            # neighbours on the same row
+                assert a.x() + a.width() <= b.x() + 1, (a.property("text"), a.x(), b.property("text"), b.x())
+        time.sleep(0.005)
