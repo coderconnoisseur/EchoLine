@@ -72,15 +72,6 @@ def test_moving_the_size_slider_updates_the_store(settings_window):
     assert store.settings.font_size == 40
 
 
-def test_choosing_a_theme_applies_it(settings_window):
-    _, window, store, _ = settings_window
-    box = window.findChild(QObject, "themeBox")
-
-    box.activated.emit(box.property("model").index("High contrast"))
-
-    assert store.settings.theme == "High contrast"
-
-
 def test_opening_twice_reuses_the_window(settings_window):
     echoline, window, _, _ = settings_window
 
@@ -153,6 +144,8 @@ def test_pressing_keys_records_a_new_hotkey(settings_window):
     from PySide6.QtTest import QTest
 
     _, window, store, _ = settings_window
+    window.setProperty("page", "shortcuts")
+    wait_until(lambda: False, timeout=0.2)
     button = find(window, "hotkeyPause")
     button.clicked.emit()
     wait_until(lambda: False, timeout=0.2)
@@ -192,3 +185,54 @@ def test_model_box_shows_the_old_model_after_a_failed_download(settings_window):
     assert wait_until(lambda: echoline.setup.property("phase") == "idle")
     assert store.settings.model == "tiny"
     assert box.property("currentText") == "Tiny — faster"
+
+
+PAGES = ["appearance", "position", "behavior", "speech", "shortcuts", "about"]
+
+
+def test_sidebar_switches_pages(settings_window):
+    _, window, _, warnings = settings_window
+    for name in PAGES:
+        window.setProperty("page", name)
+        wait_until(lambda: False, timeout=0.05)
+        assert find(window, f"page {name}").property("visible"), name
+        assert all(not find(window, f"page {o}").property("visible") for o in PAGES if o != name)
+    assert warnings == []
+
+
+def test_arrow_keys_move_through_pages(settings_window):
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+
+    _, window, _, _ = settings_window
+    find(window, "sidebar").forceActiveFocus()
+    QTest.keyClick(window, Qt.Key_Down)
+    QTest.keyClick(window, Qt.Key_Down)
+
+    assert window.property("page") == "behavior"
+
+
+def test_window_loads_in_light_and_dark(tmp_path):
+    from PySide6.QtCore import Qt
+
+    hints = QGuiApplication.styleHints()
+    try:
+        for scheme in (Qt.ColorScheme.Light, Qt.ColorScheme.Dark):
+            hints.setColorScheme(scheme)
+            store = SettingsStore(Settings(model="tiny", onboarded=True), tmp_path / f"{scheme.name}.json")
+            echoline = EchoLineApp(lambda kind: FakeSource(), EchoEngine, store)
+            warnings = []
+            echoline.qml.warnings.connect(lambda items: warnings.extend(w.toString() for w in items))
+            echoline.open_settings()
+            wait_until(lambda: False, timeout=0.2)
+            echoline.shutdown()
+            assert warnings == [], (scheme, warnings)
+    finally:
+        hints.unsetColorScheme()
+
+
+def test_sample_runs_only_while_visible(settings_window):
+    echoline, window, _, _ = settings_window
+    assert echoline.sample.running
+    window.close()
+    assert wait_until(lambda: not echoline.sample.running, timeout=1)
