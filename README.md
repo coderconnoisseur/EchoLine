@@ -73,6 +73,11 @@ settings. Changes preview live. Settings are stored in
 `%APPDATA%\EchoLine\settings.json`; if that file is damaged, EchoLine backs it
 up as `settings.json.bak` and starts with defaults.
 
+Captions arrive word by word: new words fade in, words the engine is still
+unsure about are dimmed and brighten once they settle, and corrections
+cross-fade in place. If "Show animations in Windows" is turned off
+(Settings → Accessibility → Visual effects), captions update without motion.
+
 ## Running the tests
 
 ```bash
