@@ -68,8 +68,10 @@ menu or the captions' right-click menu.
 
 ## Customizing
 
-Right-click the captions (or press **Ctrl + ,** while they are focused) to open
-settings. Changes preview live. Settings are stored in
+Right-click the captions, or use the tray icon, to open Settings. Pages on the
+left cover Appearance, Position, Behavior, Speech, Shortcuts and About; a live
+preview at the top shows every change, and the window follows Windows' light or
+dark theme and accent colour. Changes apply immediately. Settings are stored in
 `%APPDATA%\EchoLine\settings.json`; if that file is damaged, EchoLine backs it
 up as `settings.json.bak` and starts with defaults.
 
