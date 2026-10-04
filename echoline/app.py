@@ -4,7 +4,7 @@ import traceback
 
 import shiboken6
 from PySide6.QtCore import Property, QCoreApplication, QObject, Qt, QTimer, QUrl, Signal, Slot
-from PySide6.QtGui import QFontDatabase, QGuiApplication
+from PySide6.QtGui import QFontDatabase, QGuiApplication, QWindow
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickWindow
 
@@ -18,6 +18,7 @@ from .ui.icon import app_icon
 from .ui.tray import TrayIcon
 from .ui.onboarding import Setup
 from .ui.overlay import QML_DIR, OverlayStatus, load_overlay
+from .ui.sample import SampleCaptions
 from .ui.blur import set_blur
 from .ui.placement import clamp_to_screen, snap_position
 
@@ -128,6 +129,8 @@ class EchoLineApp:
         self.window = load_overlay(self.qml, self.captions, self.status, settings_store, self.controller)
         self.setup = Setup(self, **(model_ops or {}))
         self.qml.rootContext().setContextProperty("setup", self.setup)
+        self.sample = SampleCaptions()           # the settings preview; runs only while settings are open
+        self.qml.rootContext().setContextProperty("sampleCaptions", self.sample)
         self.window.frameSwapped.connect(self._on_frame_shown, Qt.DirectConnection)
 
         self._save_position = QTimer(singleShot=True, interval=500)
@@ -391,6 +394,10 @@ class EchoLineApp:
     def open_settings(self):
         if self.settings_window is None:
             self.settings_window = self._load_window("Settings.qml")
+            # Animate the preview only while it can be seen: not hidden, closed or minimised.
+            self.settings_window.visibilityChanged.connect(
+                lambda v: self.sample.start() if v not in (QWindow.Hidden, QWindow.Minimized) else self.sample.stop())
+        self.sample.start()
         return self._present(self.settings_window)
 
     def open_onboarding(self):
@@ -449,6 +456,7 @@ class EchoLineApp:
         # render thread and would call into a freed EchoLineApp.
         self.window.frameSwapped.disconnect(self._on_frame_shown)
         self.window.close()
+        self.sample.stop()
         if self.settings_window is not None:
             self.settings_window.close()
         if self.onboarding_window is not None:

@@ -72,15 +72,6 @@ def test_moving_the_size_slider_updates_the_store(settings_window):
     assert store.settings.font_size == 40
 
 
-def test_choosing_a_theme_applies_it(settings_window):
-    _, window, store, _ = settings_window
-    box = window.findChild(QObject, "themeBox")
-
-    box.activated.emit(box.property("model").index("High contrast"))
-
-    assert store.settings.theme == "High contrast"
-
-
 def test_opening_twice_reuses_the_window(settings_window):
     echoline, window, _, _ = settings_window
 
@@ -153,6 +144,8 @@ def test_pressing_keys_records_a_new_hotkey(settings_window):
     from PySide6.QtTest import QTest
 
     _, window, store, _ = settings_window
+    window.setProperty("page", "shortcuts")
+    wait_until(lambda: False, timeout=0.2)
     button = find(window, "hotkeyPause")
     button.clicked.emit()
     wait_until(lambda: False, timeout=0.2)
@@ -192,3 +185,121 @@ def test_model_box_shows_the_old_model_after_a_failed_download(settings_window):
     assert wait_until(lambda: echoline.setup.property("phase") == "idle")
     assert store.settings.model == "tiny"
     assert box.property("currentText") == "Tiny — faster"
+
+
+PAGES = ["appearance", "position", "behavior", "speech", "shortcuts", "about"]
+
+
+def test_sidebar_switches_pages(settings_window):
+    _, window, _, warnings = settings_window
+    for name in PAGES:
+        window.setProperty("page", name)
+        wait_until(lambda: False, timeout=0.05)
+        assert find(window, f"page {name}").property("visible"), name
+        assert all(not find(window, f"page {o}").property("visible") for o in PAGES if o != name)
+    assert warnings == []
+
+
+def test_arrow_keys_move_through_pages(settings_window):
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+
+    _, window, _, _ = settings_window
+    find(window, "sidebar").forceActiveFocus()
+    QTest.keyClick(window, Qt.Key_Down)
+    QTest.keyClick(window, Qt.Key_Down)
+
+    assert window.property("page") == "behavior"
+
+
+def test_sample_runs_only_while_visible(settings_window):
+    echoline, window, _, _ = settings_window
+    assert echoline.sample.running
+    window.close()
+    assert wait_until(lambda: not echoline.sample.running, timeout=1)
+
+
+def visual(item, name):
+    for child in item.childItems():
+        if child.objectName() == name:
+            return child
+        found = visual(child, name)
+        if found is not None:
+            return found
+    return None
+
+
+def focus_in_sidebar(window):
+    """The sidebar is a focus scope: focus lands on its current entry."""
+    item = window.activeFocusItem()
+    while item is not None:
+        if item.objectName() == "sidebar":
+            return True
+        item = item.parentItem()
+    return False
+
+
+def test_light_theme_renders_without_warnings(settings_window):
+    # setColorScheme is a no-op offscreen, so flip the window's theme directly.
+    _, window, _, warnings = settings_window
+    theme = find(window, "theme")
+    dark_card = theme.property("card")
+    theme.setProperty("dark", False)
+    for name in PAGES:
+        window.setProperty("page", name)
+        wait_until(lambda: False, timeout=0.05)
+    assert theme.property("card") != dark_card
+    assert warnings == []
+
+
+def test_clicking_the_sidebar_takes_keyboard_focus(settings_window):
+    from PySide6.QtCore import QPoint, Qt
+    from PySide6.QtTest import QTest
+
+    # Review find: after a mouse click, Space still toggled a switch on the page you left.
+    _, window, store, _ = settings_window
+    window.setProperty("page", "position")
+    wait_until(lambda: False, timeout=0.1)
+    find(window, "onTopSwitch").forceActiveFocus()
+    QTest.mouseClick(window, Qt.LeftButton, Qt.NoModifier, QPoint(60, 16 + 5 * 38 + 18))    # "About"
+    wait_until(lambda: False, timeout=0.1)
+    QTest.keyClick(window, Qt.Key_Space)
+
+    assert window.property("page") == "about"
+    assert store.settings.always_on_top is True
+    assert focus_in_sidebar(window)
+
+
+def test_shift_tab_leads_back_to_the_sidebar(settings_window):
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+
+    _, window, _, _ = settings_window
+    window.setProperty("page", "behavior")
+    wait_until(lambda: False, timeout=0.1)
+    find(window, "autoHideSwitch").forceActiveFocus()
+    for _ in range(12):
+        QTest.keyClick(window, Qt.Key_Backtab)
+        if focus_in_sidebar(window):
+            break
+    assert focus_in_sidebar(window)
+
+
+def test_theme_cards_work_from_the_keyboard(settings_window):
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+
+    _, window, store, _ = settings_window
+    card = visual(window.contentItem(), "theme High contrast")
+    assert card.property("activeFocusOnTab")
+    card.forceActiveFocus()
+    QTest.keyClick(window, Qt.Key_Space)
+    assert store.settings.theme == "High contrast"
+
+
+def test_sample_pauses_while_minimised(settings_window):
+    echoline, window, _, _ = settings_window
+    window.showMinimized()
+    assert wait_until(lambda: not echoline.sample.running, timeout=1)
+    window.showNormal()
+    assert wait_until(lambda: echoline.sample.running, timeout=1)
