@@ -1,6 +1,6 @@
 import time
 
-from PySide6.QtCore import QCoreApplication, Qt
+from PySide6.QtCore import QCoreApplication, QEvent, Qt
 
 from echoline.captions.model import CaptionModel
 from echoline.engine.base import Final, Partial
@@ -135,3 +135,43 @@ def test_a_guess_that_stops_changing_settles_after_a_pause():
 
     assert settled(model) == "It was the best of times"
     assert model.property("latestSettled") == "It was the best of times"
+
+
+def words_of(model, row=0):
+    names = {v.data().decode(): k for k, v in model.roleNames().items()}
+    return model.data(model.index(row), names["words"])
+
+
+def test_each_row_carries_its_words_with_settled_flags():
+    model = CaptionModel(settle_after_ms=60_000)
+    model.apply([Partial(0, "It was the")])
+    model.apply([Partial(0, "It was the best")])
+    words = words_of(model)
+    assert words.words() == ["It", "was", "the", "best"]
+    assert [words.data(words.index(i), words.SETTLED) for i in range(4)] == [True, True, True, False]
+    assert model.property("latestWords") is words
+
+    model.apply([Final(0, "It was the best of times.")])
+    assert all(words.data(words.index(i), words.SETTLED) for i in range(words.rowCount()))
+
+
+def test_dropped_rows_release_their_words():
+    model = CaptionModel(max_utterances=1, settle_after_ms=60_000)
+    model.apply([Final(0, "first.")])
+    first = words_of(model)
+    destroyed = []
+    first.destroyed.connect(lambda: destroyed.append(True))
+    model.apply([Final(1, "second.")])
+    QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)   # run deleteLater
+    assert destroyed == [True]
+
+
+def test_idle_settling_reaches_the_words():
+    model = CaptionModel(settle_after_ms=50)
+    model.apply([Partial(0, "hello there")])
+    words = words_of(model)
+    deadline = time.monotonic() + 1
+    while not words.data(words.index(1), words.SETTLED) and time.monotonic() < deadline:
+        app.processEvents()
+        time.sleep(0.01)
+    assert words.data(words.index(1), words.SETTLED)
