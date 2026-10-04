@@ -109,3 +109,9 @@ The transcription metrics package is documented in [metrics/README.md](metrics/R
 
 **Captions lag behind ("Catching up…")**
 - Your CPU cannot keep up with the selected model. Choose Tiny under Settings → Behavior → Speech model.
+
+## License
+
+EchoLine is released under the [MIT License](LICENSE). It uses
+[Moonshine](https://github.com/moonshine-ai/moonshine) English speech models
+(MIT) and [Qt for Python](https://www.qt.io/qt-for-python) (LGPL-3.0).

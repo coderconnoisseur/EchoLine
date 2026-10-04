@@ -273,6 +273,25 @@ Each milestone gets its own implementation plan and PR.
 
 After v1: the single-page download website, as its own sub-project with its own spec.
 
+## Distribution (decided 2026-10-04)
+
+- **Repo** holds source, tests and docs; its README is the developer front
+  page (GIF, download link, features, privacy, build from source, license).
+  No binaries in git. License: **MIT**.
+- **GitHub Releases** hold each version's `EchoLine-Setup-<ver>.exe` (Inno
+  Setup), `EchoLine-<ver>-portable.zip` and `SHA256SUMS.txt`, built and
+  published by a GitHub Actions workflow on a `v*` tag (M5).
+- **Website** (host decided later; custom subdomain such as
+  `echoline.nishantbuilds.me` via CNAME) links its Download button to
+  `releases/latest/download/EchoLine-Setup.exe`, so releases never require a
+  site redeploy. The release workflow therefore also uploads the installer
+  under that stable name.
+- Speech models are downloaded on first run, not bundled.
+- **Unsigned** at launch; the website explains SmartScreen's "More info → Run
+  anyway". Add Azure Trusted Signing once there are users.
+- At M5 the default branch `PYSide6` is renamed to `main`; the old `main` is
+  kept as `legacy`.
+
 ## Out of scope for v1
 
 See [ROADMAP.md](../../ROADMAP.md).
