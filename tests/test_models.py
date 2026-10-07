@@ -1,7 +1,9 @@
 import time
+from pathlib import Path
 
 import moonshine_voice
 import numpy as np
+import pytest
 
 from echoline import models
 from echoline.engine.base import SAMPLE_RATE
@@ -12,19 +14,41 @@ def test_models_live_under_local_appdata(monkeypatch, tmp_path):
     assert models.models_dir() == tmp_path / "EchoLine" / "models"
 
 
-def test_is_downloaded_needs_every_file_at_full_size(tmp_path):
-    files = models._files("tiny", tmp_path)
-    assert files and not models.is_downloaded("tiny", tmp_path)
-    for path, size in files:
+def fill_with_zeros(name, root):
+    """Every file at its full size but zero-filled, as a crash mid-write can leave it."""
+    for path, size, _ in models._files(name, root):
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "wb") as f:
-            f.truncate(size)            # sparse: instant even for 40 MB
-    assert models.is_downloaded("tiny", tmp_path)
+            f.truncate(size)
 
-    path, size = files[0]
-    with open(path, "wb") as f:
-        f.truncate(size - 1)            # a cut-off download
+
+def test_missing_or_damaged_files_are_not_downloaded(tmp_path):
     assert not models.is_downloaded("tiny", tmp_path)
+    fill_with_zeros("tiny", tmp_path)                 # right sizes, wrong contents
+    assert not models.is_downloaded("tiny", tmp_path)
+
+
+def test_a_real_model_counts_as_downloaded():
+    from moonshine_voice.download_file import get_cache_dir
+
+    if not (Path(get_cache_dir()) / "download.moonshine.ai" / "model" / "tiny-streaming-en").exists():
+        pytest.skip("Tiny is not in moonshine's own cache on this machine")
+    assert models.is_downloaded("tiny", get_cache_dir())
+
+
+def test_download_replaces_damaged_files(monkeypatch, tmp_path):
+    # moonshine skips a file of the right size without checking it, so a damaged
+    # file would never be fetched again and the model would never load.
+    fill_with_zeros("tiny", tmp_path)
+    seen = []
+
+    def fake(language, model_arch, cache_root=None, on_progress=None):
+        seen.extend(path.exists() for path, _, _ in models._files("tiny", cache_root))
+        return "model-path", model_arch
+
+    monkeypatch.setattr(moonshine_voice, "get_model_for_language", fake)
+    models.download("tiny", root=tmp_path)
+    assert seen and not any(seen)
 
 
 def test_download_uses_our_folder_and_reports_progress(monkeypatch, tmp_path):

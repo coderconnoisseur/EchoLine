@@ -1,5 +1,7 @@
 import argparse
+import os
 import sys
+from pathlib import Path
 
 # Must run before PySide6 is imported: moonshine.dll cannot initialise once Qt is loaded.
 from .engine.moonshine_engine import preload_native_library
@@ -7,6 +9,16 @@ from .engine.moonshine_engine import preload_native_library
 preload_native_library()
 
 from PySide6.QtWidgets import QApplication  # noqa: E402
+
+
+def log_to_file_when_frozen(path=None):
+    """The packaged exe has no console: keep prints and tracebacks in a log people can send us."""
+    if not getattr(sys, "frozen", False):
+        return None
+    path = path or Path(os.environ.get("LOCALAPPDATA", Path.home())) / "EchoLine" / "echoline.log"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    sys.stdout = sys.stderr = open(path, "w", encoding="utf-8", buffering=1)    # one run per log
+    return path
 
 
 def startup_mode(settings, model, is_downloaded):
@@ -24,6 +36,7 @@ def main(argv=None):
                         help="use this model for this run (default: the one chosen at setup)")
     parser.add_argument("--show-latency", action="store_true", help="show p50/p95 caption latency")
     args = parser.parse_args(argv)
+    log_to_file_when_frozen()
 
     qt_app = QApplication(sys.argv[:1])
     qt_app.setQuitOnLastWindowClosed(False)   # hiding captions or closing settings must not quit

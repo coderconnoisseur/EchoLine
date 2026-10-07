@@ -32,3 +32,32 @@ def test_startup_mode():
     assert startup_mode(Settings(onboarded=True, model="tiny"), "tiny", have) == "run"
     assert startup_mode(Settings(onboarded=True, model="small"), "small", have) == "repair"   # files gone
     assert startup_mode(Settings(onboarded=True), "", have) == "setup"
+
+
+def test_packaged_app_writes_output_to_a_log(tmp_path, monkeypatch):
+    # A windowed exe has no console: stderr is None, so every traceback.print_exc()
+    # in the app would itself raise. Output goes to a log people can send instead.
+    import traceback
+
+    from echoline.__main__ import log_to_file_when_frozen
+
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "stdout", None)
+    monkeypatch.setattr(sys, "stderr", None)
+    log = log_to_file_when_frozen(tmp_path / "EchoLine" / "echoline.log")
+    try:
+        raise RuntimeError("engine hiccup")
+    except RuntimeError:
+        traceback.print_exc()
+    print("still running")
+    sys.stderr.close()
+
+    text = log.read_text(encoding="utf-8")
+    assert "engine hiccup" in text and "still running" in text
+
+
+def test_source_runs_keep_the_console(monkeypatch):
+    from echoline.__main__ import log_to_file_when_frozen
+
+    monkeypatch.delattr(sys, "frozen", raising=False)
+    assert log_to_file_when_frozen() is None

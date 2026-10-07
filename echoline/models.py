@@ -22,26 +22,40 @@ def arch(name):
 
 
 def _files(name, root):
-    """(path, expected size) for each file of the model, from the native manifest (offline)."""
+    """(path, expected size, expected CRC32C) per model file, from the native manifest (offline)."""
     from moonshine_voice.download import _primary_stt_group, find_model_info
 
     group = _primary_stt_group(find_model_info("en", arch(name)))
     base = Path(root) / group["base_url"].replace("https://", "")
-    return [(base / f["name"], f.get("size")) for f in group["files"]]
+    return [(base / f["name"], f.get("size"), f.get("checksum") if f.get("checksum_type") == "crc32c" else None)
+            for f in group["files"]]
+
+
+def _intact(path, size, crc):
+    from moonshine_voice.download_file import crc32c_file
+
+    if not path.is_file() or (size is not None and path.stat().st_size != size):
+        return False
+    return crc is None or crc32c_file(path) in (None, crc)     # None: checksum library missing
 
 
 def is_downloaded(name, root=None) -> bool:
-    return all(path.is_file() and (size is None or path.stat().st_size == size)
-               for path, size in _files(name, root or models_dir()))
+    return all(_intact(*f) for f in _files(name, root or models_dir()))
 
 
 def download(name, on_progress=None, root=None) -> str:
     """Fetch (or resume) the model; blocks, so call it off the GUI thread."""
     import moonshine_voice
 
+    root = root or models_dir()
+    # moonshine skips any file of the right size without checking it, so a file a
+    # crash left damaged would never be fetched again: remove those first.
+    for path, size, crc in _files(name, root):
+        if path.exists() and not _intact(path, size, crc):
+            path.unlink()
     progress = (lambda fraction, _file: on_progress(fraction)) if on_progress else None
     path, _ = moonshine_voice.get_model_for_language(
-        "en", arch(name), cache_root=root or models_dir(), on_progress=progress)
+        "en", arch(name), cache_root=root, on_progress=progress)
     return path
 
 
