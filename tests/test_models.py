@@ -109,3 +109,15 @@ def test_check_hardware_closes_the_engine(monkeypatch):
     monkeypatch.setattr(models, "check_clip", lambda seconds=15: np.zeros(1600, np.float32))
     assert models.check_hardware(load=lambda: engine) == "small"
     assert engine.closed
+
+
+def test_models_dir_is_ascii_even_for_non_english_user_names(monkeypatch, tmp_path):
+    # Moonshine's native loader cannot open paths with non-ASCII characters, so a
+    # user named José got "Speech model unavailable" on every launch.
+    profile = tmp_path / "José" / "AppData" / "Local"
+    monkeypatch.setenv("LOCALAPPDATA", str(profile))
+    monkeypatch.setenv("PROGRAMDATA", str(tmp_path / "ProgramData"))
+    path = models.models_dir()
+    assert str(path).isascii(), path
+    path.mkdir(parents=True, exist_ok=True)
+    assert path.is_dir()
