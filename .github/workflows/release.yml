@@ -28,7 +28,11 @@ jobs:
         run: python -m pytest -q
 
       - name: Build app
-        run: python -m PyInstaller packaging/echoline.spec --noconfirm --distpath build/dist --workpath build/work
+        shell: pwsh
+        run: |
+          # Stamp the tag's version into the app, so tester logs say which build crashed.
+          Set-Content echoline/__init__.py "__version__ = '$("${{ github.ref_name }}".TrimStart("v"))'"
+          python -m PyInstaller packaging/echoline.spec --noconfirm --distpath build/dist --workpath build/work
 
       - name: Build installer and portable zip
         shell: pwsh
