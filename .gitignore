@@ -59,3 +59,4 @@ bench_results.json
 # Packaging output
 /build/
 /release/
+!/packaging/echoline.spec
