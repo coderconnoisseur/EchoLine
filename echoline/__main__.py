@@ -18,7 +18,43 @@ def log_to_file_when_frozen(path=None):
     path = path or Path(os.environ.get("LOCALAPPDATA", Path.home())) / "EchoLine" / "echoline.log"
     path.parent.mkdir(parents=True, exist_ok=True)
     sys.stdout = sys.stderr = open(path, "w", encoding="utf-8", buffering=1)    # one run per log
+    import faulthandler
+
+    faulthandler.enable(sys.stderr)          # native crashes too, not just Python errors
+    print(machine_report(), flush=True)
     return path
+
+
+def machine_report():
+    """What a tester's log needs to say about their PC."""
+    import ctypes
+    import platform
+    import winreg
+
+    from . import __version__
+    from .models import models_dir
+
+    try:
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"HARDWARE\DESCRIPTION\System\CentralProcessor\0") as key:
+            cpu = winreg.QueryValueEx(key, "ProcessorNameString")[0].strip()
+    except OSError:
+        cpu = platform.processor()
+    # x64 apps run emulated on ARM PCs (Snapdragon); only IsWow64Process2 tells.
+    native = ctypes.c_ushort(0)
+    process = ctypes.c_ushort(0)
+    try:
+        kernel32 = ctypes.WinDLL("kernel32")
+        kernel32.GetCurrentProcess.restype = ctypes.c_void_p      # a handle, not a C int
+        kernel32.IsWow64Process2(ctypes.c_void_p(kernel32.GetCurrentProcess()),
+                                 ctypes.byref(process), ctypes.byref(native))
+    except (AttributeError, OSError):
+        pass
+    arch = {0xAA64: "ARM64 (running x64 emulated)", 0x8664: "x64"}.get(native.value, platform.machine())
+    return "\n".join([f"EchoLine {__version__}",
+                      f"Windows {platform.version()} ({platform.win32_edition()})",
+                      f"CPU {cpu}, {os.cpu_count()} threads",
+                      f"Architecture {arch}",
+                      f"Models {models_dir()}", ""])
 
 
 def startup_mode(settings, model, is_downloaded):

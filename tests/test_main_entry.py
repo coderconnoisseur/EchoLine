@@ -61,3 +61,19 @@ def test_source_runs_keep_the_console(monkeypatch):
 
     monkeypatch.delattr(sys, "frozen", raising=False)
     assert log_to_file_when_frozen() is None
+
+
+def test_packaged_log_starts_with_machine_details(tmp_path, monkeypatch):
+    # A tester's crash log said only "access violation"; the log now records
+    # what machine it came from so reports can be diagnosed without a back-and-forth.
+    from echoline.__main__ import log_to_file_when_frozen
+
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "stdout", None)
+    monkeypatch.setattr(sys, "stderr", None)
+    log = log_to_file_when_frozen(tmp_path / "EchoLine" / "echoline.log")
+    sys.stderr.close()
+
+    text = log.read_text(encoding="utf-8")
+    for field in ("EchoLine", "Windows", "CPU", "Architecture", "Models"):
+        assert field in text, field

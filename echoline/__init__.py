@@ -1,1 +1,1 @@
-"""EchoLine: live, offline captions for anything playing on your PC."""
+__version__ = "0.3.0"   # the release workflow stamps the tag version here
