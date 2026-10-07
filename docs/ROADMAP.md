@@ -8,6 +8,36 @@ v1 scope and design: [specs/2026-10-03-echoline-v1-design.md](superpowers/specs/
   (installer and zip), a two-minute setup guide, SmartScreen explanation and
   checksums. Separate spec.
 
+## Product direction (discussed 2026-10-07, not scheduled)
+
+Goal: as many happy users as possible (free, portfolio project; launch on
+Product Hunt, X, Reddit, Show HN). Plain live captions compete with Windows 11's
+free built-in Live Captions, so the launch needs a hook beyond "captions".
+
+Strongest candidates, in the order we'd explore them:
+
+1. **Live translation into English** — e.g. a Spanish video or call with
+   English subtitles, offline, on any Windows 10/11 PC (Windows only offers
+   live translation on Copilot+ PCs). Moonshine already has streaming models
+   for Spanish, German, Japanese, Chinese, Arabic, Vietnamese and Tagalog
+   (non-commercial Moonshine Community License — fine while EchoLine is free);
+   translate each finished sentence with Opus-MT via CTranslate2 (~75 MB per
+   language pair, tens of ms per sentence on CPU). Show the original dimmed
+   with the English line under it ("dual subtitles"). Start with a throwaway
+   spike measuring delay, quality and CPU on a mid-range laptop. A demo GIF of
+   this is the launch asset.
+2. **Private meeting transcripts** — capture microphone and system audio
+   together: mic = "You", system = "Them" gives who-said-what for any call app
+   with no bot joining. Then Moonshine's built-in speaker identification
+   (8 MB, `identify_speakers`) splits "Them" into speakers. Save TXT / Markdown
+   / SRT with timestamps.
+3. Audiences to speak to at launch: language learners (r/languagelearning,
+   r/LearnJapanese), deaf and hard-of-hearing communities, people whose work
+   bans cloud note-takers.
+
+Kept out on purpose for now: AI summaries (need a cloud service or a large
+local model, which breaks the private/offline promise) and macOS.
+
 ## Deferred features
 
 Not prioritized yet; pick from this list after v1.
