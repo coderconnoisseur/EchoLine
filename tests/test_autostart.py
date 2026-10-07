@@ -60,7 +60,8 @@ def test_launch_command_runs_the_checkout_without_a_console():
 
     command = launch_command()
     assert "pythonw" in command.lower()
-    assert str(Path(echoline.__file__).resolve().parent.parent) in command
+    # The checkout path is embedded as a Python string literal, backslashes escaped.
+    assert repr(str(Path(echoline.__file__).resolve().parent.parent)) in command
     assert "run_module('echoline'" in command
 
 

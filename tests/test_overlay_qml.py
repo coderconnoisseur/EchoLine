@@ -13,6 +13,7 @@ from echoline.captions.model import CaptionModel
 from echoline.engine.base import Final, Partial
 from echoline.settings.model import Settings
 from echoline.settings.store import SettingsStore
+from echoline.ui.motion import Motion
 from echoline.ui.overlay import OverlayStatus, load_overlay
 
 app = QGuiApplication.instance() or QGuiApplication([])
@@ -25,7 +26,7 @@ def overlay(tmp_path):
     engine.warnings.connect(lambda items: warnings.extend(w.toString() for w in items))
     captions, status = CaptionModel(settle_after_ms=60_000), OverlayStatus()   # no idle settling mid-test
     store = SettingsStore(Settings(), tmp_path / "settings.json")
-    window = load_overlay(engine, captions, status, store)
+    window = load_overlay(engine, captions, status, store, motion=Motion(True))   # CI runners have Windows animations off
     window.store = store
     yield window, captions, status, warnings
     window.close()
