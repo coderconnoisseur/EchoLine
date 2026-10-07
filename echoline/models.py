@@ -11,7 +11,13 @@ import numpy as np
 
 
 def models_dir() -> Path:
-    return Path(os.environ.get("LOCALAPPDATA", Path.home())) / "EchoLine" / "models"
+    path = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "EchoLine" / "models"
+    if str(path).isascii():
+        return path
+    # Moonshine's native loader cannot open non-ASCII paths (a user named José, say),
+    # and it resolves 8.3 short names back to the long ones, so use ProgramData,
+    # which every user can create folders in.
+    return Path(os.environ.get("PROGRAMDATA", r"C:\ProgramData")) / "EchoLine" / "models"
 
 
 def arch(name):

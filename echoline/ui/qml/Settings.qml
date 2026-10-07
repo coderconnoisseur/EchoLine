@@ -17,12 +17,12 @@ ApplicationWindow {
     property string page: "appearance"
 
     readonly property var pages: [
-        { key: "appearance", label: "Appearance", glyph: "" },
-        { key: "position", label: "Position", glyph: "" },
-        { key: "behavior", label: "Behavior", glyph: "" },
-        { key: "speech", label: "Speech", glyph: "" },
-        { key: "shortcuts", label: "Shortcuts", glyph: "" },
-        { key: "about", label: "About", glyph: "" }
+        { key: "appearance", label: "Appearance", icon: "palette" },
+        { key: "position", label: "Position", icon: "screen" },
+        { key: "behavior", label: "Behavior", icon: "tune" },
+        { key: "speech", label: "Speech", icon: "mic" },
+        { key: "shortcuts", label: "Shortcuts", icon: "keyboard" },
+        { key: "about", label: "About", icon: "info" }
     ]
     function pageIndex(key) { return pages.findIndex(p => p.key === key) }
 
@@ -136,10 +136,9 @@ ApplicationWindow {
                     Row {
                         anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
                         spacing: 12
-                        Text {
-                            text: entry.modelData.glyph
-                            font.family: "Segoe Fluent Icons, Segoe MDL2 Assets"
-                            font.pixelSize: 16
+                        Icon {
+                            name: entry.modelData.icon
+                            size: 16
                             color: theme.text
                             anchors.verticalCenter: parent.verticalCenter
                         }
