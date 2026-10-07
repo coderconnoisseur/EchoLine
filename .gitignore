@@ -55,3 +55,7 @@ graphify-out/
 # Benchmark audio (downloaded by scripts/fetch_bench_clips.py)
 bench_clips/
 bench_results.json
+
+# Packaging output
+/build/
+/release/

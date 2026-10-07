@@ -21,11 +21,23 @@ offline and nothing you hear leaves your computer.
 - Click-through (clicks reach the window below), auto-hide after silence, start with Windows
 - Drag the overlay anywhere, or drag its edges to resize
 
-## Requirements
-- Windows 10 or 11
-- Python 3.10 or higher
+## Install
 
-## Installation & Setup
+1. Download **EchoLine-Setup.exe** from the
+   [latest release](https://github.com/coderconnoisseur/EchoLine/releases/latest)
+   (Windows 10 or 11, 64-bit). No admin rights needed.
+2. Run it. The installer is not code-signed yet, so Windows may show
+   "Windows protected your PC": click **More info → Run anyway**.
+3. EchoLine starts with a short setup: it downloads the speech model
+   (45 MB, once), checks your PC, plays a sound test and lets you pick a look.
+
+Prefer no installer? Download the portable `.zip`, extract it anywhere and run
+`EchoLine.exe`. If something goes wrong, `%LOCALAPPDATA%\EchoLine\echoline.log`
+says why; please attach it to an issue.
+
+## Run from source
+
+Requires Windows 10 or 11 and Python 3.10 or higher.
 
 1. **Clone this repository:**
    ```bash
@@ -79,6 +91,18 @@ Captions arrive word by word: new words fade in, words the engine is still
 unsure about are dimmed and brighten once they settle, and corrections
 cross-fade in place. If "Show animations in Windows" is turned off
 (Settings → Accessibility → Visual effects), captions update without motion.
+
+## Building the installer
+
+```bash
+pip install pyinstaller==6.16.0
+python -m PyInstaller packaging/echoline.spec --noconfirm --distpath build/dist --workpath build/work
+iscc /DAppVersion=0.3.0 packaging\installer.iss
+```
+
+Releases are built by GitHub Actions: pushing a tag such as `v0.3.0` (or
+`v0.3.0-beta.1` for a pre-release) tests, builds and publishes the installer,
+a portable zip and `SHA256SUMS.txt`.
 
 ## Running the tests
 
