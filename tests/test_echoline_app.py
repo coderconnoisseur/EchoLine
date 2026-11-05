@@ -163,6 +163,21 @@ def test_failed_model_load_is_reported(tmp_path):
         echoline.shutdown()
 
 
+def test_failed_model_load_outlasts_the_settings_reset_notice(tmp_path):
+    def crashing_engine():
+        raise OSError("access violation")
+
+    echoline = EchoLineApp(lambda kind: FakeSource(), crashing_engine, SettingsStore(Settings(), tmp_path / "s.json"),
+                           settings_reset=True)
+    echoline.start()
+    try:
+        assert wait_until(lambda: echoline.status.property("state") == "model-error")
+        echoline._end_notice()                  # the notice timing out must not bring back "Loading"
+        assert echoline.status.property("state") == "model-error"
+    finally:
+        echoline.shutdown()
+
+
 def test_snap_moves_window_and_remembers_position(running):
     echoline, _ = running
 

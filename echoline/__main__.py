@@ -66,6 +66,16 @@ def startup_mode(settings, model, is_downloaded):
     return "repair" if model else "setup"
 
 
+def one_run_model(requested, mode, is_downloaded):
+    """--model applies to a normal run only: repair would save it, setup would fetch it with no progress."""
+    if not requested:
+        return None
+    if mode == "run" and is_downloaded(requested):
+        return requested
+    print(f"--model {requested} ignored: it needs setup finished and that model downloaded", flush=True)
+    return None
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="echoline", description="Live captions for anything playing on your PC.")
     parser.add_argument("--model", choices=["tiny", "small", "medium"], default=None,
@@ -97,9 +107,12 @@ def main(argv=None):
     settings, was_reset = load_settings(default_settings_path())
     store = SettingsStore(settings, default_settings_path())
 
+    mode = startup_mode(store.settings, store.settings.model, models.is_downloaded)
+    override = one_run_model(args.model, mode, models.is_downloaded)
+
     def chosen_model():
         # ponytail: --model also wins after a switch in Settings; it is a developer flag.
-        return args.model or store.settings.model
+        return override or store.settings.model
 
     def make_source(kind):
         return MicrophoneSource() if kind == "microphone" else LoopbackSource()
@@ -110,7 +123,6 @@ def main(argv=None):
     echoline = EchoLineApp(make_source, make_engine, store,
                            show_latency=args.show_latency, settings_reset=was_reset)
     instance.shown.connect(echoline.bring_to_front)
-    mode = startup_mode(store.settings, chosen_model(), models.is_downloaded)
     if mode == "run":
         echoline.start()
     else:

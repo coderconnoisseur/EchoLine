@@ -16,7 +16,7 @@ from .pipeline.worker import EngineWorker
 from .ui.fonts import caption_fonts
 from .ui.icon import app_icon
 from .ui.tray import TrayIcon
-from .ui.onboarding import Setup
+from .ui.onboarding import GETTING_READY, Setup
 from .ui.overlay import QML_DIR, OverlayStatus, load_overlay
 from .ui.sample import SampleCaptions
 from .ui.blur import set_blur
@@ -174,7 +174,7 @@ class EchoLineApp:
         self._registered_hotkeys = self._hotkey_texts()
         self.hotkeys.unregister_all()
         s = self.settings_store.settings
-        self.hotkeys.register("show_hide", s.hotkey_show_hide, lambda: self.set_visible(not self.visible))
+        self.hotkeys.register("show_hide", s.hotkey_show_hide, self.toggle_captions)
         self.hotkeys.register("pause", s.hotkey_pause, lambda: self.set_paused(not self.paused))
         self.hotkeys.register("click_through", s.hotkey_click_through,
                               lambda: self.set_click_through(not self.settings_store.settings.click_through))
@@ -187,6 +187,16 @@ class EchoLineApp:
         self.visible = visible
         self.window.setVisible(visible)
         self._refresh_tray()
+
+    def _setup_is_open(self):
+        return self.onboarding_window is not None and self.onboarding_window.isVisible()
+
+    def toggle_captions(self):
+        """Tray and hotkey: before the sound test there are no captions to show, so raise setup."""
+        if self._setup_is_open() and self.setup.property("step") == GETTING_READY:
+            self._present(self.onboarding_window)
+        else:
+            self.set_visible(not self.visible)
 
     def hide_from_overlay(self):
         """The overlay's own hide button: the first time, say where EchoLine went."""
@@ -369,13 +379,13 @@ class EchoLineApp:
             self._source_state = state
         if self.paused and state != "model-error":
             return      # a late source status must not hide "Paused"
-        if self._notice_active:
+        if self._notice_active and state != "model-error":
             return      # keep the notice up; _end_notice shows the latest state
         self.status.set_state(self._source_state if state == "caught-up" else state)
 
     def _end_notice(self):
         self._notice_active = False
-        if not self._closed:
+        if not self._closed and self.status.property("state") != "model-error":
             self.status.set_state(self._source_state if self.worker else "loading")
 
     def _load_window(self, file_name):
@@ -386,7 +396,10 @@ class EchoLineApp:
 
     @staticmethod
     def _present(window):
-        window.show()
+        if window.visibility() == QWindow.Minimized:
+            window.showNormal()
+        else:
+            window.show()
         window.raise_()
         window.requestActivate()
         return window
@@ -417,7 +430,7 @@ class EchoLineApp:
 
     def bring_to_front(self):
         """Another launch asked for us: raise setup if it is running, else show captions."""
-        if self.onboarding_window is not None and self.onboarding_window.isVisible():
+        if self._setup_is_open():
             self._present(self.onboarding_window)
         else:
             self.set_visible(True)

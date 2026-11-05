@@ -1,3 +1,4 @@
+import os
 import subprocess
 import sys
 
@@ -77,3 +78,42 @@ def test_packaged_log_starts_with_machine_details(tmp_path, monkeypatch):
     text = log.read_text(encoding="utf-8")
     for field in ("EchoLine", "Windows", "CPU", "Architecture", "Models"):
         assert field in text, field
+
+
+def test_model_flag_does_not_decide_startup_mode(tmp_path):
+    # An undownloaded --model used to look like a damaged install: repair fetched and saved it.
+    script = """
+import json, os, sys
+os.environ['QT_QPA_PLATFORM'] = 'offscreen'
+import echoline.__main__ as m, echoline.app as a, echoline.instance as i, echoline.models as models
+from echoline.settings.model import default_settings_path
+path = default_settings_path()
+path.parent.mkdir(parents=True, exist_ok=True)
+path.write_text(json.dumps({'onboarded': True, 'model': 'tiny'}))
+i.notify_running = lambda name: False
+models.is_downloaded = lambda name: name == 'tiny'
+class Fake:
+    def __init__(self, *args, **kwargs): pass
+    def run_setup(self, model=None): print('setup', model); sys.exit(0)
+    def start(self): print('run'); sys.exit(0)
+    def bring_to_front(self): pass
+    def shutdown(self): pass
+a.EchoLineApp = Fake
+m.main(['--model', 'small'])
+"""
+    env = {**os.environ, "APPDATA": str(tmp_path)}
+    out = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, timeout=60, env=env)
+
+    assert out.stdout.strip().splitlines()[-1:] == ["run"], out.stderr[-400:]
+
+
+def test_model_flag_only_applies_to_a_normal_run_with_the_files_present():
+    # Otherwise repair saves it for good and setup downloads it with no progress.
+    from echoline.__main__ import one_run_model
+
+    have = lambda name: name == "tiny"                       # noqa: E731
+    assert one_run_model("tiny", "run", have) == "tiny"
+    assert one_run_model("small", "run", have) is None
+    assert one_run_model("tiny", "repair", have) is None
+    assert one_run_model("tiny", "setup", have) is None
+    assert one_run_model(None, "run", have) is None

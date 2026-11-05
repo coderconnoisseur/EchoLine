@@ -60,7 +60,9 @@ ApplicationWindow {
             Label {
                 objectName: "echoLabel"
                 Layout.fillWidth: true; wrapMode: Text.Wrap; font.italic: !captions.latestText
-                text: captions.latestText || "Waiting for sound…"
+                text: status.state === "model-error"
+                      ? "The speech model couldn't load. Details are in %LOCALAPPDATA%\\EchoLine\\echoline.log"
+                      : captions.latestText || "Waiting for sound…"
             }
             Item { Layout.fillHeight: true }
             Button {
