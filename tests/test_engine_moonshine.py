@@ -172,7 +172,9 @@ def test_load_uses_streaming_settings_that_keep_cost_flat(monkeypatch):
     assert "vad_max_segment_duration" not in created["options"]
     # Moonshine's native layer also gates re-transcription (0.5 s by default),
     # which capped updates at ~1.4/s whatever the Python interval was.
-    assert created["options"]["transcription_interval"] == "0.1"
+    # 0.2 s costs about 14% less CPU than 0.1 s with no measurable lag or accuracy
+    # cost (docs/benchmarks/2026-11-cpu-usage.md).
+    assert created["options"]["transcription_interval"] == "0.2"
     assert created["update_interval"] == created["stream_interval"] == 0.1
 
 

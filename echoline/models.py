@@ -106,7 +106,9 @@ def check_hardware(load=None) -> str:
         from .engine.moonshine_engine import MoonshineEngine
 
         def load():
-            return MoonshineEngine.load(arch("tiny"), cache_root=models_dir())
+            # The threshold was calibrated at 0.1; retuning the live interval must not move PCs across it.
+            return MoonshineEngine.load(arch("tiny"), options={"transcription_interval": "0.1"},
+                                        cache_root=models_dir())
     engine = load()
     try:
         return choose_model(measure_rtf(engine, check_clip()))
