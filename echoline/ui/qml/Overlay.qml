@@ -132,19 +132,23 @@ Window {
                 id: statusPill
                 objectName: "statusPill"
                 visible: status.state !== "listening" || status.notice !== ""
-                radius: height / 2
+                radius: Math.min(height / 2, 12)
                 color: ["no-device", "no-microphone", "model-error"].indexOf(status.state) >= 0 ? "#b3261e" : "#5a5a5a"
-                width: statusText.implicitWidth + 20
+                width: Math.min(statusText.implicitWidth + 20, parent.width)
                 height: statusText.implicitHeight + 6
                 anchors.horizontalCenter: parent.horizontalCenter
                 Text {
                     id: statusText
+                    objectName: "statusText"
                     anchors.centerIn: parent
+                    width: statusPill.width - 20
+                    horizontalAlignment: Text.AlignHCenter
+                    wrapMode: Text.Wrap     // a long message must stay readable on a narrow overlay
                     color: "white"
                     font.pixelSize: 13
                     text: status.notice !== "" ? status.notice : ({ "loading": "Loading speech model…", "no-device": "No audio device", "paused": "Paused",
                              "no-microphone": "No microphone — check Windows privacy settings",
-                             "model-error": "Speech model unavailable — check your connection and restart",
+                             "model-error": "Speech model couldn't load — details in %LOCALAPPDATA%\\EchoLine\\echoline.log",
                              "settings-reset": "Settings were damaged and have been reset",
                              "lagging": "Falling behind — try a smaller model" })[status.state] || status.state
                 }
