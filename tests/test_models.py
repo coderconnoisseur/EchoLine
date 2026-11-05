@@ -111,6 +111,24 @@ def test_check_hardware_closes_the_engine(monkeypatch):
     assert engine.closed
 
 
+def test_check_hardware_times_at_the_interval_its_threshold_was_calibrated_for(monkeypatch):
+    # The live interval can be tuned for CPU; that must not move PCs across the Tiny/Small line.
+    from echoline.engine.moonshine_engine import MoonshineEngine
+
+    seen = {}
+
+    def fake_load(model_arch, options=None, cache_root=None):
+        seen.update(options or {})
+        return SlowEngine(0)
+
+    monkeypatch.setattr(MoonshineEngine, "load", staticmethod(fake_load))
+    monkeypatch.setattr(models, "check_clip", lambda seconds=15: np.zeros(1600, np.float32))
+
+    models.check_hardware()
+
+    assert seen["transcription_interval"] == "0.1"
+
+
 def test_models_dir_is_ascii_even_for_non_english_user_names(monkeypatch, tmp_path):
     # Moonshine's native loader cannot open paths with non-ASCII characters, so a
     # user named José got "Speech model unavailable" on every launch.

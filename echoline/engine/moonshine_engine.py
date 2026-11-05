@@ -23,8 +23,9 @@ class MoonshineEngine:
     # By default every update returns every past line's audio, so update cost
     # grows with session length until captions fall behind. We only need text.
     # The native layer only re-transcribes after transcription_interval seconds of new
-    # audio (0.5 by default), which held captions to ~1.4 updates a second.
-    STREAMING_OPTIONS = {"return_audio_data": "false", "transcription_interval": "0.1"}
+    # audio (0.5 by default), which held captions to ~1.4 updates a second. 0.2 costs
+    # about 14% less CPU than 0.1 with no measurable lag (docs/benchmarks/2026-11-cpu-usage.md).
+    STREAMING_OPTIONS = {"return_audio_data": "false", "transcription_interval": "0.2"}
 
     @classmethod
     def load(cls, model_arch, update_interval=0.1, options=None, cache_root=None):
