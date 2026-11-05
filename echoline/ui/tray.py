@@ -22,7 +22,7 @@ class TrayIcon:
             self.menu.addAction(act)
             return act
 
-        self.show_hide = item("showHide", "Hide captions", lambda: app.set_visible(not app.visible))
+        self.show_hide = item("showHide", "Hide captions", app.toggle_captions)
         self.pause = item("pause", "Pause", lambda checked: app.set_paused(checked), checkable=True)
         self.click_through = item("clickThrough", "Click-through",
                                   lambda checked: app.set_click_through(checked), checkable=True)
@@ -49,7 +49,7 @@ class TrayIcon:
         if self.app.settings_store.settings.click_through and self.app.visible:
             self.app.set_click_through(False)    # the quickest way out of click-through
         else:
-            self.app.set_visible(not self.app.visible)
+            self.app.toggle_captions()
 
     def notify(self, title, text):
         self.icon.showMessage(title, text, QSystemTrayIcon.Information, 8000)

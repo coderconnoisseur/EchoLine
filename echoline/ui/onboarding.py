@@ -37,6 +37,10 @@ class Setup(QObject):
     phase = Property(str, lambda self: self._phase, notify=changed)
     progress = Property(float, lambda self: self._progress, notify=changed)
     repair = Property(bool, lambda self: self._mode == "repair", notify=changed)
+    onboarding = Property(bool, lambda self: self._onboarding(), notify=changed)
+
+    def _onboarding(self):
+        return self._mode in ("setup", "repair") and not self._finished
 
     @Slot(str)
     def _set_phase(self, phase):
@@ -95,6 +99,7 @@ class Setup(QObject):
         self._set_phase("ready")
         if self._mode == "repair":
             self._finished = True
+            self.changed.emit()
             self._app.close_onboarding()
             self._app.set_visible(True)
         self._app.start()
@@ -126,6 +131,7 @@ class Setup(QObject):
         if self._finished:
             return
         self._finished = True
+        self.changed.emit()
         self._app.settings_store.setValue("onboarded", True)
         self._app.settings_store.save_now()
         self._app.close_onboarding()
@@ -143,8 +149,7 @@ class Setup(QObject):
     @Slot(str)
     def chooseModel(self, name):
         busy = self._phase in ("downloading", "checking")
-        onboarding = self._mode in ("setup", "repair") and not self._finished
-        if busy or onboarding or name == self._app.settings_store.settings.model:
+        if busy or self._onboarding() or name == self._app.settings_store.settings.model:
             return
         if self._is_downloaded(name):
             self._app.settings_store.setValue("model", name)

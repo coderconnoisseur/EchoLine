@@ -374,7 +374,8 @@ ApplicationWindow {
                             textRole: "text"; valueRole: "value"
                             model: [{ text: "Tiny — faster", value: "tiny" }, { text: "Small — more accurate", value: "small" }]
                             currentIndex: model.findIndex(item => item.value === win.s.model)
-                            enabled: setup.phase !== "downloading" && setup.phase !== "checking"
+                            displayText: currentIndex >= 0 ? currentText : setup.onboarding ? "Chosen during setup" : win.s.model
+                            enabled: !setup.onboarding && setup.phase !== "downloading" && setup.phase !== "checking"
                             onActivated: (index) => {
                                 setup.chooseModel(model[index].value)
                                 // Clicking broke the binding; follow the setting again so a failed download shows the old model.
