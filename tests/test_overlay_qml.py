@@ -84,6 +84,31 @@ def test_status_pill_shows_only_when_not_listening(overlay):
     assert pill.property("visible")
 
 
+def test_model_error_points_to_the_log_without_suggesting_a_restart(overlay):
+    # Downloads fail in the setup window, so this state means the files are fine but
+    # would not load. A restart overwrites the log, which is the one thing we need.
+    window, _, status, _ = overlay
+    text = window.findChild(QObject, "statusPill").findChild(QObject, "statusText")
+
+    status.set_state("model-error")
+    settle()
+
+    assert "%LOCALAPPDATA%\\EchoLine\\echoline.log" in text.property("text")
+    assert "connection" not in text.property("text")
+    assert "restart" not in text.property("text")
+
+
+def test_status_pill_stays_inside_the_narrowest_overlay(overlay):
+    window, _, status, _ = overlay
+    window.store.setValue("width_percent", 20)
+    pill = window.findChild(QObject, "statusPill")
+
+    status.set_state("model-error")
+    settle()
+
+    assert pill.property("width") <= window.findChild(QObject, "content").property("width")
+
+
 def test_overlay_is_returned_as_a_quick_window(overlay):
     # The app needs QQuickWindow API (frameSwapped) to measure sound-to-screen latency.
     from PySide6.QtQuick import QQuickWindow
